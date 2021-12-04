@@ -1,0 +1,1 @@
+// coremap.c: keep track of free physical frames
