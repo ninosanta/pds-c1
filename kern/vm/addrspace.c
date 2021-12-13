@@ -35,6 +35,73 @@
 #include <proc.h>
 
 
+
+void vm_bootstrap(void){
+    // int val_ret_coremap; 
+    // paddr_t val_lastaddr , val_firstaddr, val_firstfree; 
+    // int dim_free_ram; 
+    // bool vm_bootstrap_done; //dovrebbe essere una variabile globale
+
+    // //inizializza tutte le strutture necessarie 
+
+    // //chiama ram_get_size per ottenere lastaddr e firstaddr(perchè poi dopo saranno diabilitate)
+    // val_lastaddr = ram_getsize(); 
+    // //alloca coremap 
+    // val_firstaddr = 0 ; //in realtà non serve
+    // val_firstfree = ram_getfirstfree(); 
+
+    // dim_free_ram = val_lastaddr - val_firstfree; 
+
+    // //inizializza la coremap 
+    // coremap_init( dim_free_ram ); 
+    // vm_bootstrap_done = true; 
+
+
+	
+	//altre inizializzazione da fare prima FORSE 
+	// if(pagetable_init(ram_getsize()/PAGE_SIZE)){
+	// 	panic("cannot init vm system. Low memory!\n");
+  	// }
+  
+  	// if(swapfile_init(SWAP_SIZE)){
+	//   	panic("cannot init vm system. Low memory!\n");
+  	// }
+	
+	// if (tlb_map_init()){
+	// 	panic("cannot init vm system. Low memory!\n");
+	// }
+	
+	//Inizializzazione della CoreMap
+	if (coremap_init(ram_getsize())){
+		panic("cannot init vm system. Low memory!\n");
+	}
+
+
+	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;
+	// pf_d = pf_e = 0;
+}
+
+/* Fault handling function called by trap code */
+int vm_fault(int faulttype, vaddr_t faultaddress){
+//gestore dell'eccezione di MISS
+     //TLB miss handler
+     //if spazio libero 
+     //if not
+        //round robin replacement
+    (int)faultaddress++; 
+    //deve anche controllare che tutte le entry si riferiscano al processo corrente (?) 
+    //non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
+    return faulttype;
+} 
+
+/* TLB shootdown handling called from interprocessor_interrupt */
+ void
+vm_tlbshootdown(const struct tlbshootdown *ts)
+{
+	(void)ts;
+	panic("dumbvm tried to do tlb shootdown?!\n");
+}
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
