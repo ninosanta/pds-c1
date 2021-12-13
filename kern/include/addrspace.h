@@ -35,8 +35,14 @@
  */
 
 
+#include <types.h>
 #include <vm.h>
-#include "opt-dumbvm.h"
+
+#include <elf.h>
+
+#include <current.h>
+#include "opt-paging.h"
+#include "pt.h"
 
 struct vnode;
 
@@ -49,7 +55,7 @@ struct vnode;
  */
 
 struct addrspace {
-#if OPT_DUMBVM
+#if OPT_PAGING
         vaddr_t as_vbase1;
         paddr_t as_pbase1;
         size_t as_npages1;
