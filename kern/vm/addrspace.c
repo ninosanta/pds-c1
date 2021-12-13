@@ -34,6 +34,7 @@
 #include <vm.h>
 #include <proc.h>
 
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -53,6 +54,12 @@ as_create(void)
 	/*
 	 * Initialize as needed.
 	 */
+
+
+	//kmalloc inizializza address space
+	//page_alloc alloca una pagina fisica --> che tecnicamente deve essere usata per la page table del processo, ma non dovrebbe servire dato che usiamo un'inverted page table
+	//salva in struct addrspace l'indirizzo della page table (?)
+	//as_define_region per salvare nell'addresspace le regioni userdefined
 
 	return as;
 }
@@ -179,4 +186,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 }
+
+
+
 
