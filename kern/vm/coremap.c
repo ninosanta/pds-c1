@@ -48,9 +48,13 @@ static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
-static unsigned char* freeRamFrames = NULL; // Vettore di marcaggi delle locazioni oppupate e libere
+static unsigned char* freeRamFrames = NULL; // Vettore di marcaggi delle locazioni occupate (valore 1) e libere (valore 0)
 static unsigned long* allocSize = NULL; // Dimensione allocata alle varie pagine
 static int allocTableActive = 0;
+
+#define RAMFRAMES_FREE 0
+#define RAMFRAMES_ALLOCATED 1
+#define ALLOCSIZE_DEFAULT 0 // Numero di pagine allocate di default
 
 /************************************************************
  *                                                          *
@@ -83,8 +87,8 @@ int coremap_init(void){
 
     // Inizializzazione dei vettori freeRamFrame e allocSize
     for(i = 0; i < nRamFrames; i++){
-        freeRamFrames[i] = (unsigned char)0;
-        allocSize[i] = (unsigned long)0;
+        freeRamFrames[i] = (unsigned char)RAMFRAMES_FREE;
+        allocSize[i] = (unsigned long)ALLOCSIZE_DEFAULT;
     }
 
     spinlock_acquire(&freemem_lock);
