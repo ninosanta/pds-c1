@@ -43,6 +43,15 @@ coremap ( tipo bitmap )
  * 
  */
 
+// Define
+#define RAMFRAMES_FREE 0
+#define RAMFRAMES_ALLOCATED 1
+#define ALLOCSIZE_DEFAULT 0 // Numero di pagine allocate di default
+
+// AllocTable
+#define ALLOCTABLE_ENABLE 1
+#define ALLOCTABLE_DISABLE 0
+
 // Variabili globali
 static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
@@ -51,10 +60,6 @@ static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegn
 static unsigned char* freeRamFrames = NULL; // Vettore di marcaggi delle locazioni occupate (valore 1) e libere (valore 0)
 static unsigned long* allocSize = NULL; // Dimensione allocata alle varie pagine
 static int allocTableActive = 0;
-
-#define RAMFRAMES_FREE 0
-#define RAMFRAMES_ALLOCATED 1
-#define ALLOCSIZE_DEFAULT 0 // Numero di pagine allocate di default
 
 /************************************************************
  *                                                          *
@@ -70,10 +75,14 @@ static int allocTableActive = 0;
  * 
  * Comments: allocata tra firstaddr(0) e freeaddr --> questa parte in realtà si può non mappare perchè non sono frame che si possono liberare
  *          tra 0 e freeaddr index --> pagine fixed (di cui non si può fare swap out) tra freeaddr e lastaddr(ram_size) --> pagine free
- *          
+ * 
+ * Response: non è possibile trascurare le prime celle del vettore in quanto i vettori sono allocati dinamicamente in base al numero di frame totali.
+ *          Tuttavia è possibile simulare un'allocazione della memoria totale, calcolare l'effettivo numero di frame e deallocare per riallocare
+ *          (avremo un po meno di quello prefissato in quando il numero di frame sarà minone).
+ * 
  */
 int coremap_init(void){
-    int i = 0;
+    int i;
 
     nRamFrames = ((int)ram_getsize() / PAGE_SIZE);
 
@@ -92,7 +101,7 @@ int coremap_init(void){
     }
 
     spinlock_acquire(&freemem_lock);
-    allocTableActive = 1; // Tabella allocata correttamente
+    allocTableActive = ALLOCTABLE_ENABLE; // Tabella allocata correttamente
     spinlock_release(&freemem_lock);
 
     return 0;
@@ -119,7 +128,7 @@ int coremap_isTableActive(void) {
  * @param npages 
  * @return paddr_t 
  */
-static paddr_t coremap_getfreeppages(unsigned long npages){
+static paddr_t getfreeppages(unsigned long npages){
     paddr_t addr;
     long i, 
         first, 
@@ -127,7 +136,7 @@ static paddr_t coremap_getfreeppages(unsigned long npages){
         np = (long)npages;
 
     if(!coremap_isTableActive())
-        return 0;
+        return ALLOCTABLE_DISABLE;
     
     spinlock_acquire(&freemem_lock);
 
@@ -145,7 +154,7 @@ static paddr_t coremap_getfreeppages(unsigned long npages){
 
     if(found > 0){
         for(i = found; i < found + np; i++)
-            freeRamFrames[i]=(unsigned char)0;
+            freeRamFrames[i]=(unsigned char)RAMFRAMES_FREE;
 
         allocSize[found]=np;
         addr = found*PAGE_SIZE;
@@ -164,11 +173,40 @@ static paddr_t coremap_getfreeppages(unsigned long npages){
  * @return paddr_t 
  */
 paddr_t coremap_getppages(unsigned long npages){
-    return 0;
+    paddr_t addr;
+
+    // Trova il primo slot sufficientemente grande di pagine contigue
+    if(!(addr = getfreeppages(npages))){
+        spinlock_acquire(&stealmem_lock);
+        addr = ram_stealmem(npages);
+        spinlock_release(&stealmem_lock);
+    }
+    if(addr && coremap_isTableActive()){
+        spinlock_acquire(&freemem_lock);
+        allocSize[addr/PAGE_SIZE] = npages; // Numero di pagine allocate
+        spinlock_release(&freemem_lock);
+
+    }
+
+    return addr;
 }
 
-int freepages(paddr_t addr, unsigned long npages){
-    return 0;
+int coremap_freepages(paddr_t addr){
+    long i,
+        first = addr/PAGE_SIZE,
+        np;
+
+    KASSERT(!allocSize);
+    KASSERT(nRamFrames>first);
+
+    np = allocSize[first];
+    
+    spinlock_acquire(&freemem_lock);
+    for(i = first; i < first + np; i++)
+        freeRamFrames[i] = (unsigned char)RAMFRAMES_ALLOCATED;
+    spinlock_release(&freemem_lock);
+
+    return 1;
 }
 
 

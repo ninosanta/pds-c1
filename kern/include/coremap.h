@@ -1,10 +1,10 @@
 #ifndef _COREMAP_H_
 #define _COREMAP_H_
 
-int coremap_init(void); // Eventualmente aggiungere questi parametri: size_t ram_size, vaddr_t first_free_addr
+int coremap_init(void);
 int coremap_isTableActive(void);
 paddr_t coremap_getppages(unsigned long npages);
-int freepages(paddr_t addr, unsigned long npages);
+int coremap_freepages(paddr_t addr);
 
 #endif
 
