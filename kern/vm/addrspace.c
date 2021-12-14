@@ -33,52 +33,47 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include <pt.h>
+#include <coremap.h>
+#include <swapfile.h>
 
+static bool vm_activated= 0; 
 
-
+/* Initialization function of the Virtual Memory System  */
 void vm_bootstrap(void){
-    // int val_ret_coremap; 
-    // paddr_t val_lastaddr , val_firstaddr, val_firstfree; 
-    // int dim_free_ram; 
-    // bool vm_bootstrap_done; //dovrebbe essere una variabile globale
 
-    // //inizializza tutte le strutture necessarie 
+    //inizializza tutte le strutture necessarie ( da fare prima ?)
 
-    // //chiama ram_get_size per ottenere lastaddr e firstaddr(perchè poi dopo saranno diabilitate)
-    // val_lastaddr = ram_getsize(); 
-    // //alloca coremap 
-    // val_firstaddr = 0 ; //in realtà non serve
-    // val_firstfree = ram_getfirstfree(); 
+	//Inizializzazione della Page Table
+	if(pt_init(ram_getsize()/PAGE_SIZE)){ //deve avere la dimensione della memoria fisica
+		panic("cannot init vm system. Low memory!\n");
+  	}
 
-    // dim_free_ram = val_lastaddr - val_firstfree; 
+	//Inizializzazione del file di Swap
+	if(swapfile_init(/*SWAP_SIZE*/ 0)){
+	  	panic("cannot init vm system. Low memory!\n");
+  	}
 
-    // //inizializza la coremap 
-    // coremap_init( dim_free_ram ); 
-    // vm_bootstrap_done = true; 
-
-
-	
-	//altre inizializzazione da fare prima FORSE 
-	// if(pagetable_init(ram_getsize()/PAGE_SIZE)){
-	// 	panic("cannot init vm system. Low memory!\n");
-  	// }
-  
-  	// if(swapfile_init(SWAP_SIZE)){
-	//   	panic("cannot init vm system. Low memory!\n");
-  	// }
-	
+	//Inizializzazione della TLB
 	// if (tlb_map_init()){
 	// 	panic("cannot init vm system. Low memory!\n");
 	// }
 	
 	//Inizializzazione della CoreMap
-	if (coremap_init(ram_getsize())){
+	if (coremap_init(ram_getsize(), ram_getfirstfree())){ //last physical address - first physical free adress
 		panic("cannot init vm system. Low memory!\n");
 	}
-
+	
+	vm_activated = 1; 
 
 	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;
 	// pf_d = pf_e = 0;
+}
+
+int vm_is_active(void){
+    //si può usare per verificare chela mmeoria virtuale sia stata bootstrappata
+    //si fa una variabile globale che viene settate alla fine di Vm_bootstrap 
+    return vm_activated; 
 }
 
 /* Fault handling function called by trap code */
@@ -101,6 +96,42 @@ vm_tlbshootdown(const struct tlbshootdown *ts)
 	(void)ts;
 	panic("dumbvm tried to do tlb shootdown?!\n");
 }
+
+
+
+/* Allocate kernel heap pages (called by kmalloc/kfree) */
+vaddr_t alloc_kpages(unsigned npages){
+    npages++; 
+    if ( vm_is_active() ){
+        //routine post vm_bootstrap
+        //prevede di utilizare page_nalloc
+
+    }
+    else {
+        //routine pre vm_bootstrap
+        //prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
+
+    }
+    return 2 ; 
+}
+
+/* Free kernel heap pages (called by kmalloc/kfree) */
+void free_kpages(vaddr_t addr){
+     if ( vm_is_active() ){
+        //routine post vm_bootstrap
+        //prevede di utilizare page_free --> ricordiamo che si deve tenere conto di quante sono le pagine contigue allocate quando si allocano in page_nalloc
+
+    }
+    else {
+        //routine pre vm_bootstrap
+        //prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
+
+    }
+    (int)addr++; 
+}
+
+
+
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
