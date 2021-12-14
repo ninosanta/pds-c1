@@ -2,21 +2,13 @@
 #include <vm.h>
 
 
-int coremap_init(size_t ram_size);
 
+int coremap_init(size_t ram_size, vaddr_t first_free_addr);
 
-int vm_is_active(void);
+//Deve trovare un segmento libero 
+void coremap_find_free (void); 
 
-/* Fault handling function called by trap code */
-//int vm_fault(int faulttype, vaddr_t faultaddress);
+//Deve trovare N segmenti liberi contigui
+void coremap_find_nfree(void/*int num_seg*/); 
 
-
-/* Allocate kernel heap pages (called by kmalloc/kfree) */
-vaddr_t alloc_kpages(unsigned npages);
-
-/* Free kernel heap pages (called by kmalloc/kfree) */
-void free_kpages(vaddr_t addr);
-
-/* TLB shootdown handling called from interprocessor_interrupt */
- //void vm_tlbshootdown(const struct tlbshootdown *); 
-
+//i tipi di ritorno e i parametri sono da cambiare come serve
