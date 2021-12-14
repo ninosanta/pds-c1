@@ -19,8 +19,10 @@
 #include "coremap.h"
 
 /************************************************************
+ *                                                          *
  * Osservazioni o note utili:                               *
  *  - Andare a vedere in OS161 MEMORY slide --> pagina 19   *
+ *                                                          *
  ************************************************************/
 
 /*si può utilizzare una struttura coremap_entry per tenere traccia delle informazioni sulla pagina fisica
@@ -42,37 +44,29 @@ coremap ( tipo bitmap )
  */
 
 // Variabili globali
-struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
-struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
+static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
+static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
 static unsigned char* freeRamFrames = NULL; // Vettore di marcaggi delle locazioni oppupate e libere
 static unsigned long* allocSize = NULL; // Dimensione allocata alle varie pagine
 static int allocTableActive = 0;
 
-static int ERROR_MEMORY_ALLOCATION = -1;
-
-/**
- * @brief Analizza in mutua esclusione la variabile denominata active
- * 
- * @return int 
- */
-static int isTableActive() {
-    int active;
-
-    spinlock_acquire(&freemem_lock);
-    active = allocTableActive;
-    spinlock_release(&freemem_lock);
-
-    return active;
-}
-
+/************************************************************
+ *                                                          *
+ * Implementazione delle funzioni                           *
+ *                                                          *
+ ************************************************************/
 /**
  * @brief 
  * 
  * @param ram_size 
  * @param first_free_addr 
  * @return int 
+ * 
+ * Comments: allocata tra firstaddr(0) e freeaddr --> questa parte in realtà si può non mappare perchè non sono frame che si possono liberare
+ *          tra 0 e freeaddr index --> pagine fixed (di cui non si può fare swap out) tra freeaddr e lastaddr(ram_size) --> pagine free
+ *          
  */
 int coremap_init(void){
     int i = 0;
@@ -98,26 +92,97 @@ int coremap_init(void){
     spinlock_release(&freemem_lock);
 
     return 0;
-
-    //     //allocata tra firstaddr(0) e freeaddr --> questa parte in realtà si può non mappare perchè non sono frame che si possono liberare
-    //     //tra 0 e freeaddr index --> pagine fixed ( di cui non si può fare swap out )
-    //     //tra freeaddr e lastaddr(ram_size) --> pagine free
 }
 
+/**
+ * @brief Analizza in mutua esclusione la variabile denominata active
+ * 
+ * @return int 
+ */
+int coremap_isTableActive(void) {
+    int active;
+
+    spinlock_acquire(&freemem_lock);
+    active = allocTableActive;
+    spinlock_release(&freemem_lock);
+
+    return active;
+}
+
+/**
+ * @brief 
+ * 
+ * @param npages 
+ * @return paddr_t 
+ */
+static paddr_t coremap_getfreeppages(unsigned long npages){
+    paddr_t addr;
+    long i, 
+        first, 
+        found,
+        np = (long)npages;
+
+    if(!coremap_isTableActive())
+        return 0;
+    
+    spinlock_acquire(&freemem_lock);
+
+    // Ricerca lineare degli intervalli liberi
+    for(i = 0, first = found = -1; i < nRamFrames; i++){
+        if(freeRamFrames[i]) {
+            if(!i || !freeRamFrames[i-1])
+                first = i; // Imposta il primo intervallo libero
+            if(i-first+1 >= np){
+                found = first;
+                break;
+            }
+        }
+    }
+
+    if(found > 0){
+        for(i = found; i < found + np; i++)
+            freeRamFrames[i]=(unsigned char)0;
+
+        allocSize[found]=np;
+        addr = found*PAGE_SIZE;
+    }
+    else
+        addr = 0;
+
+    spinlock_release(&freemem_lock);
+
+    return addr;    
+}
+/**
+ * @brief Trova la prime pagine libere
+ * 
+ * @param npages 
+ * @return paddr_t 
+ */
+paddr_t coremap_getppages(unsigned long npages){
+    return 0;
+}
+
+int freepages(paddr_t addr, unsigned long npages){
+    return 0;
+}
+
+
+
 //Deve trovare un segmento libero
-void coremap_find_free(void)
-{
+//void coremap_find_free(void)
+//{
     //cercare un frame libero
     //se libero chiama la funzione che lo occupi
     //se non c'è nessun frame libero
     //chiama la funzione che faccia swap out di qualcosa
-}
+//}
 
 //Deve trovare N segmenti liberi contigui
-void coremap_find_nfree(void /*int num_seg*/)
-{
+//void coremap_find_nfree(void /*int num_seg*/)
+//{
     //cerca n frame contigui liberi
     //se li trova, chiama la funzione che li occupi
     //se non li trova
     //chiama la funzione che li trovi
-}
+//}
