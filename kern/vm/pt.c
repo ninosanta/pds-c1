@@ -1,5 +1,9 @@
 // pt.c: page tables and page table entry manipulation go here 
 
+#include <types.h>
+#include <vm.h>
+#include <pt.h>
+
 //INVERTED PAGE TABLE  --> PID, P, invalid bit, readonly bit
 //--> one entry for each real page in memory 
 //quando ho un TLB MISS devo vedere dentro alla inverted page table, e inserire una nuova entry nella TLB
@@ -16,14 +20,26 @@
 //usata dalle funzioni in address space
 
 
+//Inizializzaizone della Inverted Page Table
+int pt_init ( int num_ram_pages){
+    //alloca la page table con dimensione della memoria fisica
+    return num_ram_pages; //stringa messa per evitare warning
+}
+
+
+void pt_get_entry (void){ //riceve address space e indirizzo virtuale
+// prende la page table
+//se c'è la entry corruspondente ritorna il puntatore corrispondente
+//se non c'è ritorna un qualcosa che indichi che non c'è 
+
+
+//questa funzione può essere chiamata per verificare se una pagina è presente in memoria fisica
+
+}
 /* 
-void pt_get_entry 
 
- int pt_init( unsigned int lenght) {
-     //alloca la page table con dimensione della memoria fisica
- }
 
- int pt_
+int pt_
  add_entry ()
  {
      //quando viene caricata una pagina fisica nuova

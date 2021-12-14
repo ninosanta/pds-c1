@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "addrspace.h": "c"
+        "addrspace.h": "c",
+        "lib.h": "c"
     }
 }
