@@ -42,6 +42,11 @@ static bool vm_activated= 0;
 /* Initialization function of the Virtual Memory System  */
 void vm_bootstrap(void){
 
+	//Inizializzazione della CoreMap
+	if (coremap_init() != COREMAP_RETURN_SUCCESS)
+		panic("cannot init vm system. Low memory!\n");
+	
+
     //inizializza tutte le strutture necessarie ( da fare prima ?)
 
 	//Inizializzazione della Page Table
@@ -59,11 +64,7 @@ void vm_bootstrap(void){
 	// 	panic("cannot init vm system. Low memory!\n");
 	// }
 	
-	//Inizializzazione della CoreMap
-	if (coremap_init(ram_getsize(), ram_getfirstfree())){ //last physical address - first physical free adress
-		panic("cannot init vm system. Low memory!\n");
-	}
-	
+
 	vm_activated = 1; 
 
 	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;

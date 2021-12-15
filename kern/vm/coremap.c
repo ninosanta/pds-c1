@@ -104,7 +104,7 @@ int coremap_init(void){
     allocTableActive = ALLOCTABLE_ENABLE; // Tabella allocata correttamente
     spinlock_release(&freemem_lock);
 
-    return 0;
+    return COREMAP_RETURN_SUCCESS;
 }
 
 /**
@@ -166,8 +166,15 @@ static paddr_t getfreeppages(unsigned long npages){
 
     return addr;    
 }
+
 /**
- * @brief Trova la prime pagine libere
+ * @brief This function should simply get the next available physical page and return it. If there are no pages available you could return 0 so that alloc_kpages
+ *      will attempt to swap or otherwise free a page, or you could do that within this function. This is the main interface to the Coremap. This is where 
+ *      you take in a VPN find an available PFN and pass it back to alloc_kpages. Remember that your Coremap is a hashtable but with some special properties.
+ *      You CANNOT have more VPN in the hashtable than PFN unless some address spaces are sharing physical memory. This differs from a normal hash table in that 
+ *      chaining as a method of collision resolution becomes complicated. You must point back into your array of nodes rather than pointing to a linked list. 
+ *      What you store in your Coremap is really up to you. You could store ASIDs and PIDs, you could throw pointers to thread structures in there etc. 
+ *      Although I would suggest PIDs over thread pointers since you already build a level of abstraction for finding threads by PID for waitpid.
  * 
  * @param npages 
  * @return paddr_t 
@@ -191,6 +198,12 @@ paddr_t coremap_getppages(unsigned long npages){
     return addr;
 }
 
+/**
+ * @brief 
+ * 
+ * @param addr 
+ * @return int 
+ */
 int coremap_freepages(paddr_t addr){
     long i,
         first = addr/PAGE_SIZE,
