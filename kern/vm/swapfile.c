@@ -1,5 +1,45 @@
+/**
+ * @file swapfile.c
+ * @author your name (you@domain.com)
+ * @brief 
+ * @version 0.1
+ * @date 2021-12-15
+ * 
+ * @copyright Copyright (c) 2021
+ * 
+ */
+
+// Librerie
+#include "swapfile.h"
+
+
+// Define
+
+// Variabili globali
+
+/************************************************************
+ *                                                          *
+ * Implementazione delle funzioni                           *
+ *                                                          *
+ ************************************************************/
+int swapfile_init(unsigned int size) {
+
+    return SWAPMAP_INIT_SUCCESS;
+}
+
+void swapfile_swapin(void){
+
+}
+
+void swapfile_swapout(void){
+
+}
+
+
+
+
+
 // swapfile.c: code for managing and manipulating the swapfile
-#include <swapfile.h>
 
 //vedi CHAPTER 9 --> pagina 55
 
@@ -16,14 +56,5 @@
 //nello swap file ci devono essere scritte le pagine che devono essere scritte su disco 
 //la politica di rimpiazzamnto è a nostra scelta
 
-unsigned int swapfile_init( unsigned int swapfile_dim) {
-    //creare
-    //deve avere una dimensione definita
-    return swapfile_dim++; //messo per evitare warning
-}
-
-void swapfile_swap_out(void){}
-
-void swapfile_swap_in(void){}
 
 

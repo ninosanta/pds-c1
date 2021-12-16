@@ -1,7 +1,10 @@
-unsigned int swapfile_init( unsigned int swapfile_size );
+#ifndef _SWAPFILE_H_
+#define _SWAPFILE_H_
 
-void swapfile_swap_out(void); 
+#define SWAPMAP_INIT_SUCCESS 0
 
-void swapfile_swap_in(void); 
+int swapfile_init(unsigned int size);
+void swapfile_swapin(void);
+void swapfile_swapout(void);
 
-//i tipi di ritorno e i parametri da passare sono da cambiare come serve
+#endif

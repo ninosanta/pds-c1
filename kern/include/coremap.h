@@ -1,7 +1,7 @@
 #ifndef _COREMAP_H_
 #define _COREMAP_H_
 
-#define COREMAP_RETURN_SUCCESS 0
+#define COREMAP_INIT_SUCCESS 0
 
 int coremap_init(void);
 int coremap_isTableActive(void);

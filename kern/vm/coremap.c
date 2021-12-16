@@ -104,7 +104,7 @@ int coremap_init(void){
     allocTableActive = ALLOCTABLE_ENABLE; // Tabella allocata correttamente
     spinlock_release(&freemem_lock);
 
-    return COREMAP_RETURN_SUCCESS;
+    return COREMAP_INIT_SUCCESS;
 }
 
 /**
