@@ -42,7 +42,7 @@
 #include <current.h>
 //#include "opt-dumbvm.h"
 #include "opt-paging.h"
-#include "pt.h"
+//#include "pt.h"
 
 struct vnode;
 
@@ -132,20 +132,20 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  *               address space. Returns the entry point (initial PC)
  *               in the space pointed to by ENTRYPOINT.
  
-
+*/
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
 
 
-void vm_bootstrap(void); 
+//void vm_bootstrap(void); 
 
-/
+
 
 //* TLB shootdown handling called from interprocessor_interrupt /
-void vm_tlbshootdown(const struct tlbshootdown *); 
+//void vm_tlbshootdown(const struct tlbshootdown *); 
 ///* Fault handling function called by trap code /
-int vm_fault(int faulttype, vaddr_t faultaddress);
+//int vm_fault(int faulttype, vaddr_t faultaddress);
 
-*/
+
 
 #endif /* _ADDRSPACE_H_ */

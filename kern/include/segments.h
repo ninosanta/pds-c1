@@ -1,6 +1,14 @@
 
-void page_alloc(); 
 
-void page_nalloc(); 
+#ifndef _SEGMENTS_H_
+#define _SEGMENTS_H_
 
-void page_free() ;
+#define SEGMENTS_INIT_SUCCESS 0
+
+void page_alloc(void); 
+
+void page_nalloc(void); 
+
+void page_free(void) ;
+
+#endif

@@ -1,20 +1,22 @@
 // pt.c: page tables and page table entry manipulation go here
 
 #include <types.h>
+#include <kern/errno.h>
+#include <lib.h>
 #include <vm.h>
 #include <pt.h>
 #include <spinlock.h>
-#include <errno.h>
+
 
 
 // Variabili globali
-static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
-static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
+//static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
+//static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
 
 
-static struct spinlock pt_lock = SPINLOCK_INITIALIZER;
+//static struct spinlock pt_lock = SPINLOCK_INITIALIZER;
 
 //INVERTED PAGE TABLE  --> PID, P, invalid bit, readonly bit
 //--> one entry for each real page in memory
@@ -36,45 +38,41 @@ static struct ipt_t *ipt = NULL;
 
 //Inizializzaizone della Inverted Page Table
 int pt_init ( void ){
-    int i ;
+    unsigned int i ;
 
     //Numero di frame della RAM
-    nRamFrames = (int)ram_getsize() / PAGE_SIZE ;
+    nRamFrames = (unsigned int)ram_getsize() / PAGE_SIZE ;
 
     //alloca la page table con dimensione della memoria fisica
-     if( ! (ipt = kmalloc(sizeof(struct ipt_t) * nRamFrames)){
+     if( ! (ipt = kmalloc(sizeof(struct ipt_t) * nRamFrames))){
         ipt =NULL;
-        return ENOMEN; //Out of Memory
+        return 1; //Out of Memory
     }
 
     //spinlock?
-    for ( i = 0 ; i < num_ram_pages ; i++ ){
+    for ( i = 0 ; i < nRamFrames ; i++ ){
         ipt[i].invalid = 1;
         ipt[i].readonly= 0;
     }
     //spinlock?
-
-
-
-
     return 0;
 }
 
 void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly ){
 
-    int index = ((int)paddr)/PAGE_SIZE;
+    unsigned int index = ((unsigned int)paddr)/PAGE_SIZE;
 
-    KASSERT( index < nRamFrames );
+    KASSERT( index <  nRamFrames );
     //spinlock
     ipt[index].vaddr = vaddr;
-    ipt[index].pid;
+    ipt[index].pid = pid;
     ipt[index].readonly = readonly;
     ipt[index].invalid = 0;
     //spinlock
 
 }
 
- int pt_replace_entry( paddr_t paddr, vaddr_t vaddrOut, vaddr_t vaddrIn, pid_t pidOut, pid_t pidIn , bool readonly){
+ //int pt_replace_entry( paddr_t paddr, vaddr_t vaddrOut, vaddr_t vaddrIn, pid_t pidOut, pid_t pidIn , bool readonly){
 
      /*for( i = 0 ; i < nRamFrames ; i++){
          if( ipt[i].invalid == 1){}
@@ -82,15 +80,19 @@ void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly ){
 */
     //quando viene sostiutuita una pagina nella memoria fisica
     //viene rimpiazzata la entry nella page table
- }
+   // return 0; 
+ //}
 
-int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
-    int i = 0 ;
+paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
+    unsigned int i = 0 ;
+    paddr_t p; 
+
+
     //spinlock
     while ( i < nRamFrames){
-        if( ipt[i].pid == pid && ipt[i].invalid == 0){
-            paddr = (paddr_t) ( i*PAGE_SIZE );
-            return 0 ;
+        if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
+            p = (i*PAGE_SIZE) ;
+            return p ;
          }
         i++;
     }
@@ -100,28 +102,30 @@ int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
 }
 
 int pt_remove_entry (vaddr_t vaddr, pid_t pid){
-    int i = 0 ;
+    unsigned int i = 0 ;
     //spinlock
     while ( i < nRamFrames){
-        if( ipt[i].pid == pid && ipt[i].invalid == 0){
+        if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             ipt[i].invalid = 1 ;
-            return 1;
+            return 0;
         }
         i++;
     }
     //spinlock
+    return 1; 
 }
 
 void pt_destroy ( void ){
-    int i = 0 ;
+    unsigned int i = 0 ;
 
     //spinlock_acquire());
     for (i=0; i<nRamFrames; i++){
         kfree((void*)&ipt[i]);
     }
-struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
+}
+//struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
 //spinlock per page table?
-    int count = 0 ;
+    //int count = 0 ;
     /*while ( count <  ){
        if ( ipt-> ipt_e[count].pid == pid ){
            if ( ipt-> ipt_e[count].vaddr == vaddr){
@@ -137,7 +141,7 @@ struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo
 //se non c'è ritorna un qualcosa che indichi che non c'è
 
 //questa funzione può essere chiamata per verificare se una pagina è presente in memoria fisica
-}
+//}
 /*
 
 

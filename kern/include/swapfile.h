@@ -3,7 +3,7 @@
 
 #define SWAPMAP_INIT_SUCCESS 0
 
-int swapfile_init(unsigned int size);
+int swapfile_init(void);
 void swapfile_swapin(void);
 void swapfile_swapout(void);
 

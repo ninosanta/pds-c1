@@ -82,14 +82,15 @@ static int allocTableActive = 0;
  * 
  */
 int coremap_init(void){
-    int i;
+    unsigned int i;
 
     nRamFrames = ((int)ram_getsize() / PAGE_SIZE);
 
     // Allocazione dei vettori freeRamFrame e allocSize
     if(!(freeRamFrames = kmalloc(sizeof(unsigned char) * nRamFrames)) || 
         !(allocSize = kmalloc(sizeof(unsigned long) * nRamFrames))) {
-        freeRamFrames = allocSize = NULL;
+        freeRamFrames = NULL; 
+        allocSize = NULL;
 
         return ENOMEM;
     }
@@ -130,7 +131,8 @@ int coremap_isTableActive(void) {
  */
 static paddr_t getfreeppages(unsigned long npages){
     paddr_t addr;
-    long i, 
+    int i; 
+    long 
         first, 
         found,
         np = (long)npages;
@@ -141,7 +143,7 @@ static paddr_t getfreeppages(unsigned long npages){
     spinlock_acquire(&freemem_lock);
 
     // Ricerca lineare degli intervalli liberi
-    for(i = 0, first = found = -1; i < nRamFrames; i++){
+    for(i = 0, first = found = -1; i < (int) nRamFrames; i++){
         if(freeRamFrames[i]) {
             if(!i || !freeRamFrames[i-1])
                 first = i; // Imposta il primo intervallo libero
@@ -210,7 +212,7 @@ int coremap_freepages(paddr_t addr){
         np;
 
     KASSERT(!allocSize);
-    KASSERT(nRamFrames>first);
+    KASSERT(nRamFrames>((unsigned int) first));
 
     np = allocSize[first];
     

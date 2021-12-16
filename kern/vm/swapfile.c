@@ -22,7 +22,7 @@
  * Implementazione delle funzioni                           *
  *                                                          *
  ************************************************************/
-int swapfile_init(unsigned int size) {
+int swapfile_init(void) {
 
     return SWAPMAP_INIT_SUCCESS;
 }
