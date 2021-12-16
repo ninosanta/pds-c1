@@ -36,7 +36,6 @@
 
 
 #include <types.h>
-#include <vm.h>
 
 #include <elf.h>
 
@@ -132,7 +131,7 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
  *    load_elf - load an ELF user program executable into the current
  *               address space. Returns the entry point (initial PC)
  *               in the space pointed to by ENTRYPOINT.
- */
+ 
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
@@ -140,11 +139,13 @@ int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
 void vm_bootstrap(void); 
 
-/* TLB shootdown handling called from interprocessor_interrupt */
+/
+
+//* TLB shootdown handling called from interprocessor_interrupt /
 void vm_tlbshootdown(const struct tlbshootdown *); 
-/* Fault handling function called by trap code */
+///* Fault handling function called by trap code /
 int vm_fault(int faulttype, vaddr_t faultaddress);
 
-
+*/
 
 #endif /* _ADDRSPACE_H_ */

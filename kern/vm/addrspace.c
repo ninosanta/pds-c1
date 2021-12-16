@@ -43,14 +43,14 @@ static bool vm_activated= 0;
 void vm_bootstrap(void){
 
 	//Inizializzazione della CoreMap
-	if (coremap_init() != COREMAP_RETURN_SUCCESS)
+	if (coremap_init() != COREMAP_INIT_SUCCESS)
 		panic("cannot init vm system. Low memory!\n");
 	
 
     //inizializza tutte le strutture necessarie ( da fare prima ?)
 
 	//Inizializzazione della Page Table
-	if(pt_init(ram_getsize()/PAGE_SIZE)){ //deve avere la dimensione della memoria fisica
+	if(pt_init()){ //deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
   	}
 
