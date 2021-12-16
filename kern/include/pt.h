@@ -9,7 +9,7 @@ struct ipt_t{
 };
 
 
-int pt_init ( int num_ram_pages);
+int pt_init (void);
 
 void pt_add_entry( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly );
 

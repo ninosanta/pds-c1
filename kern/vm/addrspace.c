@@ -55,9 +55,9 @@ void vm_bootstrap(void){
   	}
 
 	//Inizializzazione del file di Swap
-	if(swapfile_init(/*SWAP_SIZE*/ 0)){
-	  	panic("cannot init vm system. Low memory!\n");
-  	}
+	//if(swapfile_init(/*SWAP_SIZE*/ 0)){
+	  	//panic("cannot init vm system. Low memory!\n");
+  //	}
 
 	//Inizializzazione della TLB
 	// if (tlb_map_init()){

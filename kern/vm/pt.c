@@ -35,7 +35,7 @@ static struct ipt_t *ipt = NULL;
 
 
 //Inizializzaizone della Inverted Page Table
-int pt_init ( int num_ram_pages){
+int pt_init ( void ){
     int i ;
 
     //Numero di frame della RAM
