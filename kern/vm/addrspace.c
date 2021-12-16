@@ -42,6 +42,8 @@ static bool vm_activated= 0;
 /* Initialization function of the Virtual Memory System  */
 void vm_bootstrap(void){
 
+	kprintf("addrspace -> vm_bootstrap(void)");
+
 	//Inizializzazione della CoreMap
 	if (coremap_init() != COREMAP_INIT_SUCCESS)
 		panic("cannot init vm system. Low memory!\n");
