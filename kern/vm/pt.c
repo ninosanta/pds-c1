@@ -10,7 +10,7 @@
 
 
 // Variabili globali
-//static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
+static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
 //static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
@@ -49,12 +49,12 @@ int pt_init ( void ){
         return 1; //Out of Memory
     }
 
-    //spinlock?
+    spinlock_acquire( &freemem_lock ); 
     for ( i = 0 ; i < nRamFrames ; i++ ){
         ipt[i].invalid = 1;
         ipt[i].readonly= 0;
     }
-    //spinlock?
+    spinlock_release( &freemem_lock);
     return 0;
 }
 
@@ -63,12 +63,12 @@ void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly ){
     unsigned int index = ((unsigned int)paddr)/PAGE_SIZE;
 
     KASSERT( index <  nRamFrames );
-    //spinlock
+    spinlock_acquire( &freemem_lock); 
     ipt[index].vaddr = vaddr;
     ipt[index].pid = pid;
     ipt[index].readonly = readonly;
     ipt[index].invalid = 0;
-    //spinlock
+    spinlock_release(&freemem_lock); 
 
 }
 
@@ -88,7 +88,7 @@ paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
     paddr_t p; 
 
 
-    //spinlock
+    spinlock_acquire( &freemem_lock ); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             p = (i*PAGE_SIZE) ;
@@ -96,14 +96,15 @@ paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
          }
         i++;
     }
-    //spinlock
+    spinlock_release( &freemem_lock ); 
 
     return 1;  // non presente in memoria
 }
 
 int pt_remove_entry (vaddr_t vaddr, pid_t pid){
     unsigned int i = 0 ;
-    //spinlock
+    
+    spinlock_acquire( &freemem_lock); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             ipt[i].invalid = 1 ;
@@ -111,17 +112,20 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
         }
         i++;
     }
-    //spinlock
+    spinlock_release( &freemem_lock); 
+
     return 1; 
 }
 
 void pt_destroy ( void ){
     unsigned int i = 0 ;
 
-    //spinlock_acquire());
+    spinlock_acquire( &freemem_lock); 
     for (i=0; i<nRamFrames; i++){
         kfree((void*)&ipt[i]);
     }
+    spinlock_release( &freemem_lock); 
+    
 }
 //struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
 //spinlock per page table?
