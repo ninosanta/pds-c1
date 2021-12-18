@@ -30,12 +30,16 @@
 #include <types.h>
 #include <kern/errno.h>
 #include <lib.h>
+#include <current.h>
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
 #include <pt.h>
 #include <coremap.h>
 #include <swapfile.h>
+#include <spl.h>
+#include <cpu.h>
+#include <thread.h>
 
 static bool vm_activated= 0; 
 
@@ -101,6 +105,17 @@ vm_tlbshootdown(const struct tlbshootdown *ts)
 }
 
 
+static void
+dumbvm_can_sleep(void)
+{
+	if (CURCPU_EXISTS()) {
+		/* must not hold spinlocks */
+		KASSERT(curcpu->c_spinlocks == 0);
+
+		/* must not be in an interrupt handler */
+		KASSERT(curthread->t_in_interrupt == 0);
+	}
+}
 
 /* Allocate kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages){
@@ -111,11 +126,19 @@ vaddr_t alloc_kpages(unsigned npages){
 
     }
     else {
+			paddr_t pa;
+
+		dumbvm_can_sleep();
+		pa = coremap_getppages(npages);
+		if (pa==0) {
+			return 0;
+		}
+		return PADDR_TO_KVADDR(pa);
         //routine pre vm_bootstrap
         //prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
 
     }
-    return 2 ; 
+    return 2; 
 }
 
 /* Free kernel heap pages (called by kmalloc/kfree) */
@@ -128,7 +151,8 @@ void free_kpages(vaddr_t addr){
     else {
         //routine pre vm_bootstrap
         //prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
-
+    	coremap_freepages(addr - MIPS_KSEG0);	
+ 		
     }
     (int)addr++; 
 }
