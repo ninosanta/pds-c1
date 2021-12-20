@@ -1,7 +1,7 @@
 /**
  * @file coremap.c
  * @author your name (you@domain.com)
- * @brief Tenere traccia dei frame fisici.
+ * @brief Managing kernel memory with a coremap: Tenere traccia dei frame fisici.
  * @version 0.1
  * @date 2021-12-14
  * 

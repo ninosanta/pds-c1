@@ -41,74 +41,60 @@
 #include <cpu.h>
 #include <thread.h>
 
-static bool vm_activated= 0; 
+#include "vmstats.h"
+
+// Define
+
+// Variabili globali
+tlb_report vmstats_report;
+
+//static bool vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
-void vm_bootstrap(void){
-
+void vm_bootstrap(void)
+{
+#if DEBUG_PAGING
 	kprintf("addrspace -> vm_bootstrap(void)");
+#endif
 
 	//Inizializzazione della CoreMap
 	if (coremap_init() != COREMAP_INIT_SUCCESS)
 		panic("cannot init vm system. Low memory!\n");
-	
 
-    //inizializza tutte le strutture necessarie ( da fare prima ?)
+	//inizializza tutte le strutture necessarie ( da fare prima ?)
 
 	//Inizializzazione della Page Table
-	if(pt_init()){ //deve avere la dimensione della memoria fisica
+	if (pt_init())
+	{ //deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
-  	}
+	}
+
+	/**
+	 * @brief Continuare con gli altri file
+	 * 
+	 */
 
 	//Inizializzazione del file di Swap
 	//if(swapfile_init(/*SWAP_SIZE*/ 0)){
-	  	//panic("cannot init vm system. Low memory!\n");
-  //	}
+	//panic("cannot init vm system. Low memory!\n");
+	//	}
 
 	//Inizializzazione della TLB
 	// if (tlb_map_init()){
 	// 	panic("cannot init vm system. Low memory!\n");
 	// }
-	
 
-	vm_activated = 1; 
+	//vm_activated = 1;
 
 	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;
 	// pf_d = pf_e = 0;
 }
 
-int vm_is_active(void){
-    //si può usare per verificare chela mmeoria virtuale sia stata bootstrappata
-    //si fa una variabile globale che viene settate alla fine di Vm_bootstrap 
-    return vm_activated; 
-}
-
-/* Fault handling function called by trap code */
-int vm_fault(int faulttype, vaddr_t faultaddress){
-//gestore dell'eccezione di MISS
-     //TLB miss handler
-     //if spazio libero 
-     //if not
-        //round robin replacement
-    (int)faultaddress++; 
-    //deve anche controllare che tutte le entry si riferiscano al processo corrente (?) 
-    //non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
-    return faulttype;
-} 
-
-/* TLB shootdown handling called from interprocessor_interrupt */
- void
-vm_tlbshootdown(const struct tlbshootdown *ts)
-{
-	(void)ts;
-	panic("dumbvm tried to do tlb shootdown?!\n");
-}
-
-
 static void
-dumbvm_can_sleep(void)
+vm_can_sleep(void)
 {
-	if (CURCPU_EXISTS()) {
+	if (CURCPU_EXISTS())
+	{
 		/* must not hold spinlocks */
 		KASSERT(curcpu->c_spinlocks == 0);
 
@@ -117,48 +103,84 @@ dumbvm_can_sleep(void)
 	}
 }
 
+// int vm_is_active(void)
+// {
+// 	//si può usare per verificare chela mmeoria virtuale sia stata bootstrappata
+// 	//si fa una variabile globale che viene settate alla fine di Vm_bootstrap
+// 	return vm_activated;
+// }
+
+/* Fault handling function called by trap code */
+int vm_fault(int faulttype, vaddr_t faultaddress)
+{
+	//gestore dell'eccezione di MISS
+	//TLB miss handler
+	//if spazio libero
+	//if not
+	//round robin replacement
+	(int)faultaddress++;
+	//deve anche controllare che tutte le entry si riferiscano al processo corrente (?)
+	//non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
+	return faulttype;
+}
+
+// /* TLB shootdown handling called from interprocessor_interrupt */
+void vm_tlbshootdown(const struct tlbshootdown *ts)
+{
+	(void)ts;
+	panic("dumbvm tried to do tlb shootdown?!\n");
+}
+
+
+
 /* Allocate kernel heap pages (called by kmalloc/kfree) */
-vaddr_t alloc_kpages(unsigned npages){
-    npages++; 
-    if ( vm_is_active() ){
-        //routine post vm_bootstrap
-        //prevede di utilizare page_nalloc
+vaddr_t alloc_kpages(unsigned npages)
+{
+	paddr_t pa;
 
-    }
-    else {
-			paddr_t pa;
+	vm_can_sleep(); //dumbvm_can_sleep(); Rinominata in vm_can_sleep() per distinguerla dalla dumbvm
+	pa = coremap_getppages(npages);
 
-		dumbvm_can_sleep();
-		pa = coremap_getppages(npages);
-		if (pa==0) {
-			return 0;
-		}
-		return PADDR_TO_KVADDR(pa);
-        //routine pre vm_bootstrap
-        //prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
+	if(!pa)
+		return 0;
 
-    }
-    return 2; 
+	return PADDR_TO_KVADDR(pa);
+
+	// npages++; Istruzione inserita perche' dava problemi in fase di compilazione
+	// if (vm_is_active())
+	// {
+	// 	//routine post vm_bootstrap
+	// 	//prevede di utilizare page_nalloc
+	// }
+	//else
+	//{
+		
+		
+		//routine pre vm_bootstrap
+		//prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
+	// }
+	// return 2;
 }
 
 /* Free kernel heap pages (called by kmalloc/kfree) */
-void free_kpages(vaddr_t addr){
-     if ( vm_is_active() ){
-        //routine post vm_bootstrap
-        //prevede di utilizare page_free --> ricordiamo che si deve tenere conto di quante sono le pagine contigue allocate quando si allocano in page_nalloc
+void free_kpages(vaddr_t addr)
+{
+	if (coremap_isTableActive())
+	{
+		//paddr_t paddr = add - MIPS_KSEG0;
+		coremap_freepages(addr - MIPS_KSEG0);
 
-    }
-    else {
-        //routine pre vm_bootstrap
-        //prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
-    	coremap_freepages(addr - MIPS_KSEG0);	
- 		
-    }
-    (int)addr++; 
+		//routine post vm_bootstrap
+		//prevede di utilizare page_free --> ricordiamo che si deve tenere conto di quante sono le pagine contigue allocate quando si allocano in page_nalloc
+	}
+	else
+	{
+		//routine pre vm_bootstrap
+		//prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
+		//coremap_freepages(addr - MIPS_KSEG0); // IN dumbvm era stata inserita nel blocco if e non else
+	}
+	//(int)addr++;
 }
-
-
-
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -172,14 +194,21 @@ as_create(void)
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
-	if (as == NULL) {
+	if (!as) // (as == NULL)
 		return NULL;
-	}
+
+	// Inizializzazione della variabile di tipo addrspace
+	as->as_vbase1 = 0;
+	as->as_pbase1 = 0;
+	as->as_npages1 = 0;
+	as->as_vbase2 = 0;
+	as->as_pbase2 = 0;
+	as->as_npages2 = 0;
+	as->as_stackpbase = 0;
 
 	/*
 	 * Initialize as needed.
 	 */
-
 
 	//kmalloc inizializza address space
 	//page_alloc alloca una pagina fisica --> che tecnicamente deve essere usata per la page table del processo, ma non dovrebbe servire dato che usiamo un'inverted page table
@@ -189,13 +218,13 @@ as_create(void)
 	return as;
 }
 
-int
-as_copy(struct addrspace *old, struct addrspace **ret)
+int as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *newas;
 
 	newas = as_create();
-	if (newas==NULL) {
+	if (newas == NULL)
+	{
 		return ENOMEM;
 	}
 
@@ -209,23 +238,23 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	return 0;
 }
 
-void
-as_destroy(struct addrspace *as)
+void as_destroy(struct addrspace *as)
 {
+	vm_can_sleep();
 	/*
-	 * Clean up as needed.
+	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
 	 */
 
 	kfree(as);
 }
 
-void
-as_activate(void)
+void as_activate(void)
 {
 	struct addrspace *as;
 
 	as = proc_getas();
-	if (as == NULL) {
+	if (as == NULL)
+	{
 		/*
 		 * Kernel thread without an address space; leave the
 		 * prior address space in place.
@@ -238,8 +267,7 @@ as_activate(void)
 	 */
 }
 
-void
-as_deactivate(void)
+void as_deactivate(void)
 {
 	/*
 	 * Write this. For many designs it won't need to actually do
@@ -258,9 +286,8 @@ as_deactivate(void)
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
  */
-int
-as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
-		 int readable, int writeable, int executable)
+int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
+					 int readable, int writeable, int executable)
 {
 	/*
 	 * Write this.
@@ -275,8 +302,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	return ENOSYS;
 }
 
-int
-as_prepare_load(struct addrspace *as)
+int as_prepare_load(struct addrspace *as)
 {
 	/*
 	 * Write this.
@@ -286,8 +312,7 @@ as_prepare_load(struct addrspace *as)
 	return 0;
 }
 
-int
-as_complete_load(struct addrspace *as)
+int as_complete_load(struct addrspace *as)
 {
 	/*
 	 * Write this.
@@ -297,8 +322,7 @@ as_complete_load(struct addrspace *as)
 	return 0;
 }
 
-int
-as_define_stack(struct addrspace *as, vaddr_t *stackptr)
+int as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	/*
 	 * Write this.
@@ -311,7 +335,3 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 }
-
-
-
-
