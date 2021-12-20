@@ -2,6 +2,11 @@
 
 #include "vmstats.h"
 
+/**
+ * @brief Inizializzazione della struttura dati. Occorre modificare la struttura dati 
+ * 
+ * @return struct tlb_report 
+ */
 struct tlb_report vmstats_init(void){
     struct tlb_report report;
 
