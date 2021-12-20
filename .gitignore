@@ -1,1 +1,7 @@
 .vscode/
+/kern/compile/*/*.o
+/kern/compile/*/includelinks/
+/kern/compile/*/kernel
+/kern/compile/*/vers.c
+/kern/compile/*/version
+/kern/compile/*/.depend*
