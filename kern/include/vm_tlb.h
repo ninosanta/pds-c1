@@ -1,5 +1,27 @@
+#ifndef _VM_TLB_H_
+#define _VM_TLB_H_
 
-//ENTRY DELLA TLB
+#include <types.h>
+#include <kern/errno.h>
+
+/**
+ * @file vm_tlb.h
+ * @author your name (you@domain.com)
+ * @brief 
+ * @version 0.1
+ * @date 2021-12-19
+ * 
+ * @copyright Copyright (c) 2021
+ * 
+ */
+
+int vmtlb_init(void);
+void vmtlb_write(int* index, uint32_t ehi, uint32_t elo);
+void vmtlb_clean(int index);
+
+
+
+/*ENTRY DELLA TLB
 struct tlb_t {
         vaddr_t virtual_page_num; 
         paddr_t physical_page_num; 
@@ -11,3 +33,5 @@ struct tlb_t {
         //appartiene al processo corrente, permette ad essa 
         //di rimanere nella tlb
 };
+*/
+#endif
