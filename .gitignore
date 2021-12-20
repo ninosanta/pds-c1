@@ -1,1 +1,3 @@
 .vscode/
+/includelinks/
+/kern/compile/*/.o
