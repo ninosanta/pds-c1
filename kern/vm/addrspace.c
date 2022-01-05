@@ -54,7 +54,7 @@ tlb_report vmstats_report;
 void vm_bootstrap(void)
 {
 #if DEBUG_PAGING
-	kprintf("addrspace -> vm_bootstrap(void)");
+	kprintf("\naddrspace -> vm_bootstrap(void)\n");
 #endif
 
 	//Inizializzazione della CoreMap

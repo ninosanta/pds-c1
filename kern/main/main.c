@@ -52,6 +52,12 @@
 #include "autoconf.h"  // for pseudoconfig
 
 #include "hello.h"
+#include "vmstats.h"
+#include "opt-paging.h"
+
+// Variabili esterne
+tlb_report vmstats_report;
+
 
 /*
  * These two pieces of data are maintained by the makefiles and build system.
@@ -156,6 +162,17 @@ shutdown(void)
 	vfs_unmountall();
 
 	thread_shutdown();
+
+	/* Scrivere qui le statistiche */
+#if OPT_PAGING
+	kprintf("\nPrint statistics of projects\n\n");
+	kprintf("tlb fault: %d\n"
+		"tlb fault with free space: %d\n"
+		"tlb fault with replace: %d\n"
+		
+		"\n\n", vmstats_report.tlb_fault, vmstats_report.tlb_faultFree, vmstats_report.tlb_faultReplacement);
+
+#endif
 
 	splhigh();
 }
