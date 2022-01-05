@@ -211,7 +211,7 @@ int coremap_freepages(paddr_t addr){
         first = addr/PAGE_SIZE,
         np;
 
-    KASSERT(!allocSize);
+    KASSERT(allocSize != NULL);
     KASSERT(nRamFrames>((unsigned int) first));
 
     np = allocSize[first];
