@@ -62,50 +62,107 @@ struct proc *kproc;
 // Aggiunta di nuove funzioni
 #define MAX_PROCESS 100
 
-static struct {
-	int active; // Default: 0
-	struct proc* process[MAX_PROCESS + 1]; // NOn esistono processi con Pid pari a 0
-	int process_index; // Indice dell'ultimo PID allocato
+static struct
+{
+	int active;							   // Default: 0
+	struct proc *process[MAX_PROCESS + 1]; // Non esistono processi con Pid pari a 0
+	int process_index;					   // Indice dell'ultimo PID allocato
 	struct spinlock lock_ptable;
 } processTable;
 
-
-static pid_t proc_get_pid(struct proc* p){
+/*static pid_t proc_get_pid(struct proc *p)
+{
 	// Spazio per allocare un processo insufficiente
-   if(processTable.process_index>=MAX_PROCESS+1) return -2;
+	if (processTable.process_index >= MAX_PROCESS + 1)
+		return -2;
 
-   int i;
+	int i;
 
 	// Process table disabilitata
-   if(!processTable.active) return -1;
-   spinlock_acquire(&processTable.lock_ptable);
+	if (!processTable.active)
+		return -1;
+	spinlock_acquire(&processTable.lock_ptable);
 
-   for(i=0;i<MAX_PROCESS+1;i++){
-	if(processTable.process[i]==NULL){
-		processTable.process[i] = p;
-		processTable.process_index+=1;	
-		spinlock_release(&processTable.lock_ptable);
-		return (pid_t) i;	
+	for (i = 0; i < MAX_PROCESS + 1; i++)
+	{
+		if (processTable.process[i] == NULL)
+		{
+			processTable.process[i] = p;
+			processTable.process_index += 1;
+			spinlock_release(&processTable.lock_ptable);
+			return (pid_t)i;
 		}
 	}
-   spinlock_release(&processTable.lock_ptable);
-   return 1;
+	spinlock_release(&processTable.lock_ptable);
+	return 1;
 }
 
+static int proc_remove_pid(struct proc *p)
+{
+	if (p == NULL)
+		return -2;
 
+	KASSERT(p->pid > 0 && p->pid <= MAX_PROCESS + 1);
 
-static
-struct proc *
+	int i = (int)p->pid;
+	// Verifica se la process table e' attiva
+	if (!processTable.active)
+		return -1;
+
+	spinlock_acquire(&processTable.lock_ptable);
+	if (p != processTable.process[i])
+	{
+		spinlock_release(&processTable.lock_ptable);
+		return 0;
+	}
+
+	// Accesso diretto sul vettore dei processi
+	processTable.process[i] = NULL;	 // Annulla la cella
+	processTable.process_index -= 1; // Decrementa il numero di processi attivi
+
+	spinlock_release(&processTable.lock_ptable);
+	return 1;
+}
+*/
+pid_t proc_search_pid(struct proc *p)
+{
+
+	if (p == NULL)
+		return -2;
+	if (!processTable.active)
+		return -1;
+
+	int i;
+
+	//Dato il processo trova il pid
+	spinlock_acquire(&processTable.lock_ptable);
+	for (i = 1; i < MAX_PROCESS + 1; i++)
+	{
+		if (processTable.process[i] == p)
+		{
+			spinlock_release(&processTable.lock_ptable);
+			return (pid_t)i;
+		}
+	}
+	spinlock_release(&processTable.lock_ptable);
+	return 0;
+}
+
+// Common function
+
+static struct proc *
 proc_create(const char *name)
 {
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
-	if (proc == NULL) {
+	if (proc == NULL)
+	{
 		return NULL;
 	}
 	proc->p_name = kstrdup(name);
-	if (proc->p_name == NULL) {
+	if (proc->p_name == NULL)
+	{
 		kfree(proc);
 		return NULL;
 	}
@@ -128,8 +185,7 @@ proc_create(const char *name)
  * Note: nothing currently calls this. Your wait/exit code will
  * probably want to do so.
  */
-void
-proc_destroy(struct proc *proc)
+void proc_destroy(struct proc *proc)
 {
 	/*
 	 * You probably want to destroy and null out much of the
@@ -149,13 +205,15 @@ proc_destroy(struct proc *proc)
 	 */
 
 	/* VFS fields */
-	if (proc->p_cwd) {
+	if (proc->p_cwd)
+	{
 		VOP_DECREF(proc->p_cwd);
 		proc->p_cwd = NULL;
 	}
 
 	/* VM fields */
-	if (proc->p_addrspace) {
+	if (proc->p_addrspace)
+	{
 		/*
 		 * If p is the current process, remove it safely from
 		 * p_addrspace before destroying it. This makes sure
@@ -191,11 +249,13 @@ proc_destroy(struct proc *proc)
 		 */
 		struct addrspace *as;
 
-		if (proc == curproc) {
+		if (proc == curproc)
+		{
 			as = proc_setas(NULL);
 			as_deactivate();
 		}
-		else {
+		else
+		{
 			as = proc->p_addrspace;
 			proc->p_addrspace = NULL;
 		}
@@ -212,11 +272,11 @@ proc_destroy(struct proc *proc)
 /*
  * Create the process structure for the kernel.
  */
-void
-proc_bootstrap(void)
+void proc_bootstrap(void)
 {
 	kproc = proc_create("[kernel]");
-	if (kproc == NULL) {
+	if (kproc == NULL)
+	{
 		panic("proc_create for kproc failed\n");
 	}
 }
@@ -233,7 +293,8 @@ proc_create_runprogram(const char *name)
 	struct proc *newproc;
 
 	newproc = proc_create(name);
-	if (newproc == NULL) {
+	if (newproc == NULL)
+	{
 		return NULL;
 	}
 
@@ -249,7 +310,8 @@ proc_create_runprogram(const char *name)
 	 * the only reference to it.)
 	 */
 	spinlock_acquire(&curproc->p_lock);
-	if (curproc->p_cwd != NULL) {
+	if (curproc->p_cwd != NULL)
+	{
 		VOP_INCREF(curproc->p_cwd);
 		newproc->p_cwd = curproc->p_cwd;
 	}
@@ -267,8 +329,7 @@ proc_create_runprogram(const char *name)
  * the timer interrupt context switch, and any other implicit uses
  * of "curproc".
  */
-int
-proc_addthread(struct proc *proc, struct thread *t)
+int proc_addthread(struct proc *proc, struct thread *t)
 {
 	int spl;
 
@@ -294,8 +355,7 @@ proc_addthread(struct proc *proc, struct thread *t)
  * the timer interrupt context switch, and any other implicit uses
  * of "curproc".
  */
-void
-proc_remthread(struct thread *t)
+void proc_remthread(struct thread *t)
 {
 	struct proc *proc;
 	int spl;
@@ -327,7 +387,8 @@ proc_getas(void)
 	struct addrspace *as;
 	struct proc *proc = curproc;
 
-	if (proc == NULL) {
+	if (proc == NULL)
+	{
 		return NULL;
 	}
 

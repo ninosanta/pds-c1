@@ -59,6 +59,7 @@ struct vnode;
  * thread_switch needs to be able to fetch the current address space
  * without sleeping.
  */
+
 struct proc {
 	char *p_name;			/* Name of this process */
 	struct spinlock p_lock;		/* Lock for this structure */
@@ -97,6 +98,9 @@ struct addrspace *proc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
+
+
+pid_t proc_search_pid(struct proc *p);
 
 
 #endif /* _PROC_H_ */

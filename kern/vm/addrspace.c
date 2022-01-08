@@ -43,11 +43,13 @@
 //#include <vfs.h>
 #include <uio.h>
 
-
 #include "vmstats.h"
 #include "vm_tlb.h"
 
 // Define
+/* under dumbvm, always have 72k of user stack */
+/* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
+#define DUMBVM_STACKPAGES    18
 
 // Variabili globali
 tlb_report vmstats_report;
@@ -68,7 +70,7 @@ void vm_bootstrap(void)
 	//inizializza tutte le strutture necessarie ( da fare prima ?)
 
 	//Inizializzazione della Page Table
-	if (pt_init() != 0) 
+	if (pt_init() != 0)
 	{ //deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
 	}
@@ -94,6 +96,11 @@ void vm_bootstrap(void)
 	// pf_d = pf_e = 0;
 }
 
+/*void as_zero_region(paddr_t paddr, unsigned npages)
+{
+	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
+}*/
+
 static void
 vm_can_sleep(void)
 {
@@ -118,12 +125,105 @@ vm_can_sleep(void)
 // Da implementare
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
+	vaddr_t vbase1, vtop1, vbase2, vtop2, stackbase, stacktop;
+	paddr_t paddr;
+
+	uint32_t ehi, elo;
+	struct addrspace *as;
+
+	int indexR;
+	size_t to_read;
+
+	int result;
+
+	faultaddress &= PAGE_FRAME;
+	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
+
+	switch (faulttype)
+	{
+	case VM_FAULT_READONLY:
+		/* We always create pages read-write, so we can't get this */
+		as_destroy(proc_getas());
+		thread_exit();
+	case VM_FAULT_READ:
+	case VM_FAULT_WRITE:
+		vmstats_report.tlb_fault++;
+		break;
+	default:
+		return EINVAL;
+	}
+
+	if (curproc == NULL)
+	{
+		/*
+		 * No process. This is probably a kernel fault early
+		 * in boot. Return EFAULT so as to panic instead of
+		 * getting into an infinite faulting loop.
+		 */
+		return EFAULT;
+	}
+	as = proc_getas();
+	if (as == NULL)
+	{
+		/*
+		 * No address space set up. This is probably also a
+		 * kernel fault early in boot.
+		 */
+		return EFAULT;
+	}
+
+	/* Assert that the address space has been set up properly. */
+	KASSERT(as->as_vbase1 != 0);
+	//KASSERT(as->as_pbase1 != 0);
+	KASSERT(as->as_npages1 != 0);
+	KASSERT(as->as_vbase2 != 0);
+	//KASSERT(as->as_pbase2 != 0);
+	KASSERT(as->as_npages2 != 0);
+	//KASSERT(as->as_stackpbase != 0);
+	KASSERT((as->as_vbase1 & PAGE_FRAME) == as->as_vbase1);
+	//KASSERT((as->as_pbase1 & PAGE_FRAME) == as->as_pbase1);
+	KASSERT((as->as_vbase2 & PAGE_FRAME) == as->as_vbase2);
+	//KASSERT((as->as_pbase2 & PAGE_FRAME) == as->as_pbase2);
+	KASSERT((as->as_stackpbase & PAGE_FRAME) == as->as_stackpbase);
+
+	vbase1 = as->as_vbase1;
+	vtop1 = vbase1 + (as->as_npages1) * PAGE_SIZE;
+	vbase2 = as->as_vbase2;
+	vtop2 = vbase2 + (as->as_npages2) * PAGE_SIZE;
+	stackbase = USERSTACK - DUMBVM_STACKPAGES * PAGE_SIZE;
+	stacktop = USERSTACK;
+
+	/*paddr_t p_temp;
+	pid_t pid = curproc->pid;
+	unsigned char flags = 0;
+
+	int ix = -1;
+	*/
+
+	(void)vbase1;
+	(void)vtop1;
+	(void)vbase2;
+	(void)vtop2;
+	(void)stackbase; 
+	(void)stacktop;
+	(void)paddr;
+	(void)ehi;
+	(void) elo;
+	(void)*as;
+
+	(void) indexR;
+	(void)to_read;
+
+	(void)result;
+
+	// Da continuare :(
+
 	//gestore dell'eccezione di MISS
 	//TLB miss handler
 	//if spazio libero
 	//if not
 	//round robin replacement
-	(int)faultaddress++;
+
 	//deve anche controllare che tutte le entry si riferiscano al processo corrente (?)
 	//non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
 	return faulttype;
@@ -136,8 +236,6 @@ void vm_tlbshootdown(const struct tlbshootdown *ts)
 	panic("dumbvm tried to do tlb shootdown?!\n");
 }
 
-
-
 /* Allocate kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages)
 {
@@ -146,7 +244,7 @@ vaddr_t alloc_kpages(unsigned npages)
 	vm_can_sleep(); //dumbvm_can_sleep(); Rinominata in vm_can_sleep() per distinguerla dalla dumbvm
 	pa = coremap_getppages(npages);
 
-	if(!pa)
+	if (!pa)
 		return 0;
 
 	return PADDR_TO_KVADDR(pa);
@@ -159,10 +257,9 @@ vaddr_t alloc_kpages(unsigned npages)
 	// }
 	//else
 	//{
-		
-		
-		//routine pre vm_bootstrap
-		//prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
+
+	//routine pre vm_bootstrap
+	//prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
 	// }
 	// return 2;
 }
@@ -252,30 +349,32 @@ void as_destroy(struct addrspace *as)
 	kfree(as);
 }
 
-void
-as_activate(void)
+void as_activate(void)
 {
 	int i, spl;
 	struct addrspace *as;
-	uint32_t ehi,elo;
+	uint32_t ehi, elo;
 	pid_t pid = curproc->pid;
 	char full_inv = 1;
 	as = proc_getas();
-	if (as == NULL) {
+	if (as == NULL)
+	{
 		return;
 	}
 
 	/* Disable interrupts on this CPU while frobbing the TLB. */
 	spl = splhigh();
 
-	for (i=0; i<NUM_TLB; i++) {
+	for (i = 0; i < NUM_TLB; i++)
+	{
 		tlb_read(&ehi, &elo, i);
-		if (((ehi & TLBHI_PID) >> 6)==(unsigned int)pid){
+		if (((ehi & TLBHI_PID) >> 6) == (unsigned int)pid)
+		{
 			full_inv = 0;
 			continue;
 		}
 		else
-			tlb_clean_entry(i); //tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+			vmtlb_clean(i); //tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
 	}
 	if (full_inv)
 		vmstats_report.tlb_invalidation++;
@@ -292,7 +391,7 @@ void as_deactivate(void)
 	 */
 }
 
-/*
+/* 
  * Set up a segment at virtual address VADDR of size MEMSIZE. The
  * segment in memory extends from VADDR up to (but not including)
  * VADDR+MEMSIZE.
@@ -303,21 +402,58 @@ void as_deactivate(void)
  * want to implement them.
  */
 int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
-					 int readable, int writeable, int executable)
+					 int readable, int writeable, int executable,
+#if OPT_PAGING
+					 off_t offset
+#endif
+)
 {
 	/*
 	 * Write this.
 	 */
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
+	size_t npages;
+	size_t memsize_old = memsize;
+
+	vm_can_sleep();
+
+	/* Align the region. First, the base... */
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
+	vaddr &= PAGE_FRAME;
+
+	/* ...and now the length. */
+	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
+
+	npages = memsize / PAGE_SIZE;
+
+	/* We don't use these - all pages are read-write */
 	(void)readable;
 	(void)writeable;
 	(void)executable;
-	
-	return 0;
-	//return ENOSYS;
+
+	if (as->as_vbase1 == 0)
+	{
+		as->as_vbase1 = vaddr;
+		as->as_npages1 = npages;
+		as->code_offset = offset;
+		as->code_size = memsize_old;
+		return 0;
+	}
+
+	if (as->as_vbase2 == 0)
+	{
+		as->as_vbase2 = vaddr;
+		as->as_npages2 = npages;
+		as->data_offset = offset;
+		as->data_size = memsize_old;
+		return 0;
+	}
+
+	/*
+	 * Support for more than two regions is not available.
+	 */
+	kprintf("dumbvm: Warning: too many regions\n");
+	return EFAULT;
 }
 
 int as_prepare_load(struct addrspace *as)
@@ -352,10 +488,4 @@ int as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	*stackptr = USERSTACK;
 
 	return 0;
-}
-
-void
-as_zero_region(paddr_t paddr, unsigned npages)
-{
-	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
 }

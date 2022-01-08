@@ -68,6 +68,7 @@ struct addrspace {
         off_t code_offset; // code offset within elf file
         uint32_t code_size;
         off_t data_offset; // data offset within elf file
+        uint32_t data_size;
         struct vnode * v; // file descriptor
 
         int count_proc; // COntatore pagine di questo processo caricato in page table
@@ -130,9 +131,10 @@ int               as_define_region(struct addrspace *as,
                                    int readable,
                                    int writeable,
                                    int executable,
-                                   #if OPT_PAGING 
-                                        off_t offset 
-                                   #endif);
+                                   #if OPT_PAGING
+                                   off_t offset
+                                   #endif
+                                   );
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);

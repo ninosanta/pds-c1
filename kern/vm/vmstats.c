@@ -13,6 +13,15 @@ struct tlb_report vmstats_init(void){
     report.tlb_fault = 0;
     report.tlb_faultFree = 0;
     report.tlb_faultReplacement = 0;
+    report.tlb_invalidation = 0;
+    report.tlb_reload = 0;
+
+    report.pf_zero = 0;
+    report.pf_disk = 0;
+    report.pf_elf = 0;
+    report.pf_swapin = 0;
+    report.pf_swapout = 0;
+
 
     return report;
 }
