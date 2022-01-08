@@ -11,6 +11,7 @@ typedef struct tlb_report{
     unsigned int tlb_fault; // Numero totale di tlb fault
     unsigned int tlb_faultFree; // Numero toale di tlb fault con celle libere della tlb
     unsigned int tlb_faultReplacement; // Numero di tlb fault con rimpiazzamento
+    unsigned int tlb_invalidation;  // Numero di tlb invalidation
     
 }tlb_report;
 

@@ -3,6 +3,7 @@
 
 #include <types.h>
 #include <kern/errno.h>
+#include <mips/tlb.h>
 
 /**
  * @file vm_tlb.h

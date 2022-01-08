@@ -48,6 +48,7 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <spinlock.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -57,6 +58,42 @@ struct proc *kproc;
 /*
  * Create a proc structure.
  */
+
+// Aggiunta di nuove funzioni
+#define MAX_PROCESS 100
+
+static struct {
+	int active; // Default: 0
+	struct proc* process[MAX_PROCESS + 1]; // NOn esistono processi con Pid pari a 0
+	int process_index; // Indice dell'ultimo PID allocato
+	struct spinlock lock_ptable;
+} processTable;
+
+
+static pid_t proc_get_pid(struct proc* p){
+	// Spazio per allocare un processo insufficiente
+   if(processTable.process_index>=MAX_PROCESS+1) return -2;
+
+   int i;
+
+	// Process table disabilitata
+   if(!processTable.active) return -1;
+   spinlock_acquire(&processTable.lock_ptable);
+
+   for(i=0;i<MAX_PROCESS+1;i++){
+	if(processTable.process[i]==NULL){
+		processTable.process[i] = p;
+		processTable.process_index+=1;	
+		spinlock_release(&processTable.lock_ptable);
+		return (pid_t) i;	
+		}
+	}
+   spinlock_release(&processTable.lock_ptable);
+   return 1;
+}
+
+
+
 static
 struct proc *
 proc_create(const char *name)

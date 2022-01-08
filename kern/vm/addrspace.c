@@ -40,8 +40,12 @@
 #include <spl.h>
 #include <cpu.h>
 #include <thread.h>
+//#include <vfs.h>
+#include <uio.h>
+
 
 #include "vmstats.h"
+#include "vm_tlb.h"
 
 // Define
 
@@ -64,7 +68,7 @@ void vm_bootstrap(void)
 	//inizializza tutte le strutture necessarie ( da fare prima ?)
 
 	//Inizializzazione della Page Table
-	if (pt_init())
+	if (pt_init() != 0) 
 	{ //deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
 	}
@@ -111,6 +115,7 @@ vm_can_sleep(void)
 // }
 
 /* Fault handling function called by trap code */
+// Da implementare
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
 	//gestore dell'eccezione di MISS
@@ -194,15 +199,14 @@ as_create(void)
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
-	if (!as) // (as == NULL)
+	if (as == NULL)
 		return NULL;
 
 	// Inizializzazione della variabile di tipo addrspace
 	as->as_vbase1 = 0;
-	as->as_pbase1 = 0;
 	as->as_npages1 = 0;
+
 	as->as_vbase2 = 0;
-	as->as_pbase2 = 0;
 	as->as_npages2 = 0;
 	as->as_stackpbase = 0;
 
@@ -248,23 +252,35 @@ void as_destroy(struct addrspace *as)
 	kfree(as);
 }
 
-void as_activate(void)
+void
+as_activate(void)
 {
+	int i, spl;
 	struct addrspace *as;
-
+	uint32_t ehi,elo;
+	pid_t pid = curproc->pid;
+	char full_inv = 1;
 	as = proc_getas();
-	if (as == NULL)
-	{
-		/*
-		 * Kernel thread without an address space; leave the
-		 * prior address space in place.
-		 */
+	if (as == NULL) {
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	spl = splhigh();
+
+	for (i=0; i<NUM_TLB; i++) {
+		tlb_read(&ehi, &elo, i);
+		if (((ehi & TLBHI_PID) >> 6)==(unsigned int)pid){
+			full_inv = 0;
+			continue;
+		}
+		else
+			tlb_clean_entry(i); //tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+	if (full_inv)
+		vmstats_report.tlb_invalidation++;
+
+	splx(spl);
 }
 
 void as_deactivate(void)
@@ -299,7 +315,9 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	(void)readable;
 	(void)writeable;
 	(void)executable;
-	return ENOSYS;
+	
+	return 0;
+	//return ENOSYS;
 }
 
 int as_prepare_load(struct addrspace *as)
@@ -334,4 +352,10 @@ int as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	*stackptr = USERSTACK;
 
 	return 0;
+}
+
+void
+as_zero_region(paddr_t paddr, unsigned npages)
+{
+	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
 }

@@ -57,12 +57,21 @@ struct vnode;
 struct addrspace {
 #if OPT_PAGING
         vaddr_t as_vbase1;
-        paddr_t as_pbase1;
+        //paddr_t as_pbase1;
         size_t as_npages1;
         vaddr_t as_vbase2;
-        paddr_t as_pbase2;
+        //paddr_t as_pbase2;
         size_t as_npages2;
         paddr_t as_stackpbase;
+
+        // Addition data
+        off_t code_offset; // code offset within elf file
+        uint32_t code_size;
+        off_t data_offset; // data offset within elf file
+        struct vnode * v; // file descriptor
+
+        int count_proc; // COntatore pagine di questo processo caricato in page table
+
 #else
         /* Put stuff here for your VM system */
        
@@ -120,7 +129,10 @@ int               as_define_region(struct addrspace *as,
                                    vaddr_t vaddr, size_t sz,
                                    int readable,
                                    int writeable,
-                                   int executable);
+                                   int executable,
+                                   #if OPT_PAGING 
+                                        off_t offset 
+                                   #endif);
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
