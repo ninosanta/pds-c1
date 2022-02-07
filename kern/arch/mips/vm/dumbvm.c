@@ -74,7 +74,7 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 /* G.Cabodi - support for free/alloc */
 
-static struct spinlock freemem_lock = SPINLOCK_INITIALIZER;
+static struct spinlock pt_lock = SPINLOCK_INITIALIZER;
 
 static unsigned char *freeRamFrames = NULL;
 static unsigned long *allocSize = NULL;
@@ -84,9 +84,9 @@ static int allocTableActive = 0;
 
 static int isTableActive () {
   int active;
-  spinlock_acquire(&freemem_lock);
+  spinlock_acquire(&pt_lock);
   active = allocTableActive;
-  spinlock_release(&freemem_lock);
+  spinlock_release(&pt_lock);
   return active;
 }
 
@@ -107,9 +107,9 @@ vm_bootstrap(void)
     freeRamFrames[i] = (unsigned char)0;
     allocSize[i]     = 0;  
   }
-  spinlock_acquire(&freemem_lock);
+  spinlock_acquire(&pt_lock);
   allocTableActive = 1;
-  spinlock_release(&freemem_lock);
+  spinlock_release(&pt_lock);
 }
 
 /*
@@ -137,7 +137,7 @@ getfreeppages(unsigned long npages) {
   long i, first, found, np = (long)npages;
 
   if (!isTableActive()) return 0; 
-  spinlock_acquire(&freemem_lock);
+  spinlock_acquire(&pt_lock);
   for (i=0,first=found=-1; i<nRamFrames; i++) {
     if (freeRamFrames[i]) {
       if (i==0 || !freeRamFrames[i-1]) 
@@ -160,7 +160,7 @@ getfreeppages(unsigned long npages) {
     addr = 0;
   }
 
-  spinlock_release(&freemem_lock);
+  spinlock_release(&pt_lock);
 
   return addr;
 }
@@ -179,9 +179,9 @@ getppages(unsigned long npages)
     spinlock_release(&stealmem_lock);
   }
   if (addr!=0 && isTableActive()) {
-    spinlock_acquire(&freemem_lock);
+    spinlock_acquire(&pt_lock);
     allocSize[addr/PAGE_SIZE] = npages;
-    spinlock_release(&freemem_lock);
+    spinlock_release(&pt_lock);
   } 
 
   return addr;
@@ -196,11 +196,11 @@ freeppages(paddr_t addr, unsigned long npages){
   KASSERT(allocSize!=NULL);
   KASSERT(nRamFrames>first);
 
-  spinlock_acquire(&freemem_lock);
+  spinlock_acquire(&pt_lock);
   for (i=first; i<first+np; i++) {
     freeRamFrames[i] = (unsigned char)1;
   }
-  spinlock_release(&freemem_lock);
+  spinlock_release(&pt_lock);
 
   return 1;
 }

@@ -53,7 +53,7 @@ coremap ( tipo bitmap )
 #define ALLOCTABLE_DISABLE 0
 
 // Variabili globali
-static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
+static struct spinlock pt_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
@@ -101,9 +101,9 @@ int coremap_init(void){
         allocSize[i] = (unsigned long)ALLOCSIZE_DEFAULT;
     }
 
-    spinlock_acquire(&freemem_lock);
+    spinlock_acquire(&pt_lock);
     allocTableActive = ALLOCTABLE_ENABLE; // Tabella allocata correttamente
-    spinlock_release(&freemem_lock);
+    spinlock_release(&pt_lock);
 
     return COREMAP_INIT_SUCCESS;
 }
@@ -116,9 +116,9 @@ int coremap_init(void){
 int coremap_isTableActive(void) {
     int active;
 
-    spinlock_acquire(&freemem_lock);
+    spinlock_acquire(&pt_lock);
     active = allocTableActive;
-    spinlock_release(&freemem_lock);
+    spinlock_release(&pt_lock);
 
     return active;
 }
@@ -140,7 +140,7 @@ static paddr_t getfreeppages(unsigned long npages){
     if(!coremap_isTableActive())
         return ALLOCTABLE_DISABLE;
     
-    spinlock_acquire(&freemem_lock);
+    spinlock_acquire(&pt_lock);
 
     // Ricerca lineare degli intervalli liberi
     for(i = 0, first = found = -1; i < (int) nRamFrames; i++){
@@ -164,7 +164,7 @@ static paddr_t getfreeppages(unsigned long npages){
     else
         addr = 0;
 
-    spinlock_release(&freemem_lock);
+    spinlock_release(&pt_lock);
 
     return addr;    
 }
@@ -191,9 +191,9 @@ paddr_t coremap_getppages(unsigned long npages){
         spinlock_release(&stealmem_lock);
     }
     if(addr && coremap_isTableActive()){
-        spinlock_acquire(&freemem_lock);
+        spinlock_acquire(&pt_lock);
         allocSize[addr/PAGE_SIZE] = npages; // Numero di pagine allocate
-        spinlock_release(&freemem_lock);
+        spinlock_release(&pt_lock);
 
     }
 
@@ -216,10 +216,10 @@ int coremap_freepages(paddr_t addr){
 
     np = allocSize[first];
     
-    spinlock_acquire(&freemem_lock);
+    spinlock_acquire(&pt_lock);
     for(i = first; i < first + np; i++)
         freeRamFrames[i] = (unsigned char)RAMFRAMES_ALLOCATED;
-    spinlock_release(&freemem_lock);
+    spinlock_release(&pt_lock);
 
     return 1;
 }

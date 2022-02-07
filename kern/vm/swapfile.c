@@ -9,6 +9,8 @@
  * 
  */
 
+ // indexR = pagetable_replacement(pid); da sistemare
+
 // Librerie
 #include <types.h>
 #include <kern/errno.h>
@@ -55,7 +57,7 @@ int swapfile_init(int length) {
     int i;
     char path[sizeof(swapfilename)];
 
-    sw = (swapfile *) kmalloc(sizeof( swapfile)*length);
+    sw = (swapfile *) kmalloc(sizeof(swapfile)*length);
     if(sw==NULL){
         return 1;
     }
@@ -83,113 +85,124 @@ int swapfile_init(int length) {
 }
 
 int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *as){
-    // unsigned int i;
-    // int indexR;
-    // int res;
-    // struct iovec iov;
-    // struct uio ku;
+    unsigned int i;
+    int indexR;
+    int res;
+    struct iovec iov;
+    struct uio ku;
 
-    // for(i=0;i<sw_length;i++){
-    //     if(sw[i].v_pages==vaddr && sw[i].pid==pid){
-    //         as->count_proc++;
-    //         if (as->count_proc>=MAX_PROC_PT){
-    //             indexR = pagetable_replacement(pid);
-    //             swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
-    //             as->count_proc--;
-    //             *paddr = indexR*PAGE_SIZE;
-    //         }
-    //         else {
-    //             *paddr = getppages(1);
-    //             if (*paddr==0){
-    //                 indexR = pagetable_replacement(pid);
-    //                 swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
-    //                 as->count_proc--;
-    //                 *paddr = indexR*PAGE_SIZE;
-    //             }
-    //         }
-    //         // clean the page just got by allocation (or previously swapped)
-    //         pf_z++;
-    //         as_zero_region(*paddr, 1);
-    //         // perform the I/O
-    //         uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i*PAGE_SIZE, UIO_READ);
-    //         res = VOP_READ(swapstore, &ku);
-    //         if (res) {
-    //             panic("something went wrong while reading from the swapfile");
-    //         }
+    // Scansione del vettore di pagine presenti nello backing store
+    for(i=0;i<sw_length;i++){
 
-    //         if (ku.uio_resid!=0){
-    //             /* short read; problem with executable? */
-	// 	        kprintf("ELF: short read on header - file truncated?\n");
-    //             /* return ENOEXEC; */
-    //         }
-    //         // pid equals to -1 means that the referenced block in the swapfile can be now reused
-    //         sw[i].pid = -1;
-    //         // add the recently swapped-in page in the IPT
-    //         pf_sw_in++;
-    //         pagetable_addentry(vaddr, *paddr, pid, sw[*paddr/PAGE_SIZE].flags);
-    //         return 1;
-    //     }
-    // }
+        //Indirizzo di pagina del processo PID trovato
+        if(sw[i].v_pages==vaddr && sw[i].pid==pid){
+            as->count_proc++;
+            // Verifica se l'aggiunta della pagina comporta il superamento della soglia massima in pt
+            if (as->count_proc>=MAX_PROC_PT){
+                indexR = pagetable_replacement(pid);
+                swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
+                as->count_proc--;
+                *paddr = indexR*PAGE_SIZE;
+            }
+            else {
+                //Richiedi una pagina fisica libera alla coremap
+                *paddr = coremap_getppages(1); 
+                if (*paddr==0){ // Non ci sono pagine liberi nel vettore corempa_allocSize
+                    indexR = pagetable_replacement(pid);
+                    swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
+                    as->count_proc--;
+                    *paddr = indexR*PAGE_SIZE;
+                }
+            }
+            // clean the page just got by allocation (or previously swapped)
+            as_zero_region(*paddr, 1); //Inizilizza a 0 la pagina
+            vmstats_report.pf_zero++;
+
+            // perform the I/O
+            uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i*PAGE_SIZE, UIO_READ); 
+            res = VOP_READ(swapstore, &ku);
+            if (res) {
+                panic("something went wrong while reading from the swapfile");
+            }
+
+            if (ku.uio_resid!=0){
+                /* short read; problem with executable? */
+		        kprintf("ELF: short read on header - file truncated?\n");
+                /* return ENOEXEC; */
+            }
+            // pid equals to -1 means that the referenced block in the swapfile can be now reused
+            sw[i].pid = -1;
+            // add the recently swapped-in page in the IPT
+            vmstats_report.pf_swapin++; // Incremento numero di swapin effettuate
+
+            pagetable_addentry(vaddr, *paddr, pid, sw[*paddr/PAGE_SIZE].flags);
+            return SWAPMAP_SUCCESS;
+        }
+    }
 
     (void)vaddr;
     (void)paddr;
     (void)pid;
     (void)as;
 
-    return 0;
-
-
+    return SWAPMAP_REJECT;
 }
 
 int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags){
 
-//  unsigned int frame_index, i, err;
-//     struct iovec iov;
-//     struct uio ku;
+ unsigned int frame_index, i, err;
+    struct iovec iov;
+    struct uio ku;
 
-//     if (vaddr > MIPS_KSEG0)
-//         return -1;
+    if (vaddr > MIPS_KSEG0)
+        return -1;
 
-//     //CERCO IL PRIMO FRAME LIBERO IN CUI POTER FARE SWAPOUT
-//     spinlock_acquire(&swapfile_lock);
-//     for (i = 0; i < sw_length; i++)
-//     {
-//         if (sw[i].pid == -1)
-//         {
-//             frame_index = i;
-//             break;
-//         }
-//     }
-//     spinlock_release(&swapfile_lock);
+    //CERCO IL PRIMO FRAME LIBERO IN CUI POTER FARE SWAPOUT
+    spinlock_acquire(&swapfile_lock);
+    for (i = 0; i < sw_length; i++)
+    {
+        if (sw[i].pid == -1)
+        {
+            frame_index = i;
+            break;
+        }
+    }
+    spinlock_release(&swapfile_lock);
 
-//     if (i == sw_length)
-//         panic("Out of swap space");
+    if (i == sw_length)
+        panic("Out of swap space");
 
-//     //FACCIO SWAPOUT
-//     uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(paddr), PAGE_SIZE, frame_index * PAGE_SIZE, UIO_WRITE);
-//     err = VOP_WRITE(swapstore, &ku);
-//     if (err)
-//     {
-//         panic(": Write error: %s\n", strerror(err));
-//     }
+    //FACCIO SWAPOUT
+    uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(paddr), PAGE_SIZE, frame_index * PAGE_SIZE, UIO_WRITE);
+    err = VOP_WRITE(swapstore, &ku);
+    if (err)
+    {
+        panic(": Write error: %s\n", strerror(err));
+    }
 
-//     spinlock_acquire(&swapfile_lock);
-//     sw[frame_index].v_pages = vaddr;
-//     sw[frame_index].flags = flags & 0x01;
-//     sw[frame_index].pid = pid;
-//     spinlock_release(&swapfile_lock);
+    // Inizializzazione della struttura dati
+    spinlock_acquire(&swapfile_lock);
+    sw[frame_index].v_pages = vaddr;
+    sw[frame_index].flags = flags & 0x01;
+    sw[frame_index].pid = pid;
+    spinlock_release(&swapfile_lock);
 
-//     tlb_clean_entry(flags >> 2);
-//     pagetable_remove_entry(paddr / PAGE_SIZE);
-//     pf_sw_out++;
-//     return 1;
+    // Il rapporto tra tlb_page(1kb) e backing store_page (4kb)è di un fattore 4
+    // Pertando data il numero di pagina associato alla tlb occorre dividere per 4 così da
+    // associarlo al numero di pagina in backing store
+    vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]    
 
-    (void)vaddr;
+    pagetable_remove_entry(paddr / PAGE_SIZE);
+    vmstats_report.pf_swapout++;
+    return 1;
+
+    (void)vaddr; 
     (void)paddr;
     (void)pid;
     (void)flags;
     return 0;
 }
+
 
 
 

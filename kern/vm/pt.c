@@ -10,11 +10,23 @@
 
 
 // Variabili globali
-static struct spinlock freemem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
-//static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
+static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
 
+
+
+struct ipt_fifo_node{
+    unsigned char index_ipt;
+    struct ipt_fifo *next;
+};
+
+struct ipt_fifo{
+    struct ipt_fifo_node *head; 
+    struct ipt_fifo_node *tail; 
+
+    unsigned int size;
+};
 
 //static struct spinlock pt_lock = SPINLOCK_INITIALIZER;
 
@@ -26,6 +38,7 @@ static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegn
 //per la ricerca nella inverted page table bisogna anche creare un meccanismo di hash per l'inserimento e la ricerca delle entry più veloce
 
 static struct ipt_t *ipt = NULL;
+static struct ipt_fifo* list_replacement = NULL;
 
 
 //page table
@@ -34,6 +47,47 @@ static struct ipt_t *ipt = NULL;
 
 //però noi dobbiamo fare quella INVERTED quindi sono da adattare le seguenti cose
 //usata dalle funzioni in address space
+
+static struct ipt_fifo_node* fifo_node_Create(unsigned int index_ipt){
+    struct ipt_fifo_node* node;
+
+    node = (struct pt_fifo_node*)kmalloc(sizeof(struct ipt_fifo_node));
+    node->index_ipt = index_ipt;
+    node->next = NULL;
+
+    return node;
+}
+
+static void fifo_node_Insert(unsigned int index_ipt){
+    struct ipt_fifo_node* node = fifo_node_Create(index_ipt);
+    if(list_replacement != NULL){
+        if(list_replacement->head == NULL) {
+            list_replacement->head = node;
+            list_replacement->tail = node;
+        }
+        else{
+            list_replacement->tail->next = node;
+        }
+    }
+}
+
+static int fifo_node_Remove(){
+    struct ipt_fifo_node* node = NULL;
+    int value = -1;
+
+    if(list_replacement != NULL){
+        if(list_replacement->head != NULL){
+            node = list_replacement->head;
+            value = node->index_ipt;
+            list_replacement->head = list_replacement->head->next;
+
+            kfree(node); 
+            
+        }
+    }
+
+    return value;
+}
 
 
 //Inizializzaizone della Inverted Page Table
@@ -49,46 +103,61 @@ int pt_init ( void ){
         return 1; //Out of Memory
     }
 
-    spinlock_acquire( &freemem_lock ); 
+    if( ! (list_replacement = kmalloc(sizeof(struct ipt_fifo)))){
+        list_replacement = NULL; 
+        return 1; 
+    }
+    
+    spinlock_acquire( &stealmem_lock ); 
     for ( i = 0 ; i < nRamFrames ; i++ ){
+        ipt[i].pid = -1;
         ipt[i].invalid = 1;
         ipt[i].readonly= 0;
+        ipt[i].flags = 0;
     }
-    spinlock_release( &freemem_lock);
+    spinlock_release( &stealmem_lock);
     return 0;
 }
 
-void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly ){
+void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly, unsigned char flag ){
 
     unsigned int index = ((unsigned int)paddr)/PAGE_SIZE;
 
     KASSERT( index <  nRamFrames );
-    spinlock_acquire( &freemem_lock); 
+    
+    spinlock_acquire( &stealmem_lock); 
+    
+    fifo_node_Insert(index); 
+    
     ipt[index].vaddr = vaddr;
     ipt[index].pid = pid;
     ipt[index].readonly = readonly;
     ipt[index].invalid = 0;
-    spinlock_release(&freemem_lock); 
-
+    ipt[index].flags = flag;
+    
+    spinlock_release(&stealmem_lock); 
 }
 
- //int pt_replace_entry( paddr_t paddr, vaddr_t vaddrOut, vaddr_t vaddrIn, pid_t pidOut, pid_t pidIn , bool readonly){
-
-     /*for( i = 0 ; i < nRamFrames ; i++){
+ int pt_replace_entry( pid_t pid){
+    unsigned int i;
+    struct ipt_t ipt_entry;
+    int max = 0;
+    int replace_index;
+     
+     for(i = 0 ; i < nRamFrames ; i++){
          if( ipt[i].invalid == 1){}
      }
-*/
-    //quando viene sostiutuita una pagina nella memoria fisica
+         //quando viene sostiutuita una pagina nella memoria fisica
     //viene rimpiazzata la entry nella page table
-   // return 0; 
- //}
+   return 0; 
+ }
 
 paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
     unsigned int i = 0 ;
     paddr_t p; 
 
 
-    spinlock_acquire( &freemem_lock ); 
+    spinlock_acquire( &pt_lock ); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             p = (i*PAGE_SIZE) ;
@@ -96,7 +165,7 @@ paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
          }
         i++;
     }
-    spinlock_release( &freemem_lock ); 
+    spinlock_release( &pt_lock ); 
 
     return 1;  // non presente in memoria
 }
@@ -104,7 +173,7 @@ paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
 int pt_remove_entry (vaddr_t vaddr, pid_t pid){
     unsigned int i = 0 ;
     
-    spinlock_acquire( &freemem_lock); 
+    spinlock_acquire( &pt_lock); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             ipt[i].invalid = 1 ;
@@ -112,7 +181,7 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
         }
         i++;
     }
-    spinlock_release( &freemem_lock); 
+    spinlock_release( &pt_lock); 
 
     return 1; 
 }
@@ -120,11 +189,11 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
 void pt_destroy ( void ){
     unsigned int i = 0 ;
 
-    spinlock_acquire( &freemem_lock); 
+    spinlock_acquire( &pt_lock); 
     for (i=0; i<nRamFrames; i++){
         kfree((void*)&ipt[i]);
     }
-    spinlock_release( &freemem_lock); 
+    spinlock_release( &pt_lock); 
     
 }
 //struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale

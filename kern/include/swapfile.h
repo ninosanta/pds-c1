@@ -5,6 +5,8 @@
 #include <spinlock.h>
 #include <addrspace.h>
 #define SWAPMAP_INIT_SUCCESS 0
+#define SWAPMAP_SUCCESS 0
+#define SWAPMAP_REJECT 1
 
 
 typedef struct  {

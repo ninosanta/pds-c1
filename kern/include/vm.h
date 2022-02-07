@@ -38,11 +38,23 @@
 
 
 #include <machine/vm.h>
+#include "opt-paging.h"
 
 /* Fault-type arguments to vm_fault() */
 #define VM_FAULT_READ        0    /* A read was attempted */
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
+
+#if OPT_PAGING
+
+// Parametro massimo di pagine associate a un processo onde evitare che un processo P1 domini sugli altri processi Px
+#define MAX_PROC_PT 32                          /* (successivamente 36 o >36)Massimo allocabile per ogni processo nella PT */
+
+#define SWAP_FILE 9*1024*1024
+#define SWAP_PAGE_SIZE 4*1024
+#define SWAP_SIZE SWAP_FILE / SWAP_PAGE_SIZE    /* dimensione dello swapfile: 9MB/4kB = 9*1024*1024/4096 */
+
+#endif
 
 
 /* Initialization function */
