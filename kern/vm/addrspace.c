@@ -114,6 +114,42 @@ vm_can_sleep(void)
 	}
 }
 
+
+static void vm_fault_page_replacement(struct addrspace* as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid){
+	int  indexReplacement,
+		ix;
+	vaddr_t paddr;
+
+	if (faultaddress >= vbase && faultaddress < vtop) {
+		// Aggiunge un nuovo processo
+		as->count_proc++;
+
+		if(as->count_proc >= MAX_PROC_PT){
+			indexReplacement = pt_replace_entry(pid);
+			paddr = indexReplacement * PAGE_SIZE;
+			
+			ix = pt_getFlagsByIndex(indexReplacement) >> 2;
+			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), paddr, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+			as->count_proc--;		
+		}
+		else{
+			paddr = coremap_getppages(1);
+				if (paddr==0){
+					//indexReplacement contiene indice (in ipt) della pagina da sacrificare
+					indexReplacement = pt_replace_entry(pid);
+					// ix contiene indice in tlb della pagina da sacrificare
+					
+					ix = pt_getFlagsByIndex(indexReplacement) >> 2;
+					swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement*PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+					as->count_proc--;
+					paddr = indexReplacement*PAGE_SIZE;
+			}
+		}
+		vmstats_report.pf_zero++;
+		as_zero_region(paddr, 1);
+
+
+}
 // int vm_is_active(void)
 // {
 // 	//si può usare per verificare chela mmeoria virtuale sia stata bootstrappata
@@ -193,12 +229,25 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	stackbase = USERSTACK - DUMBVM_STACKPAGES * PAGE_SIZE;
 	stacktop = USERSTACK;
 
-	/*paddr_t p_temp;
+	paddr_t p_temp;
 	pid_t pid = curproc->pid;
 	unsigned char flags = 0;
 
 	int ix = -1;
-	*/
+
+	if(pt_get_paddr(faultaddress, pid, p_temp)){
+		// Page hit
+		paddr = p_temp;
+		vmstats_report.tlb_reload;
+	}
+
+	else if(swapfile_swapin(faultaddress, &p_temp, pid, as)){
+		paddr = p_temp;
+		flags = pt_getpt_getFlagsByIndex(paddr>>12);
+		vmstats_report.pf_disk++;
+	}
+
+	
 
 
 
@@ -214,7 +263,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	(void)stacktop;
 	(void)paddr;
 	(void)ehi;
-	(void) elo;
+	(void)elo;
 	(void)*as;
 
 	(void) indexR;

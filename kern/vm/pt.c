@@ -6,14 +6,16 @@
 #include <vm.h>
 #include <pt.h>
 #include <spinlock.h>
-
+#include <clock.h>
 
 
 // Variabili globali
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
 
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
+static struct ipt_t *ipt = NULL;
 
+#ifdef FIFOSCHEDULING
 
 
 struct ipt_fifo_node{
@@ -37,8 +39,8 @@ struct ipt_fifo{
 //quando lo metto in memoria fisica, devo inserire le entry nella inverted page table
 //per la ricerca nella inverted page table bisogna anche creare un meccanismo di hash per l'inserimento e la ricerca delle entry più veloce
 
-static struct ipt_t *ipt = NULL;
-static struct ipt_fifo* list_replacement = NULL;
+
+//static struct ipt_fifo* list_replacement = NULL;
 
 
 //page table
@@ -88,6 +90,8 @@ static int fifo_node_Remove(){
 
     return value;
 }
+#endif
+
 
 
 //Inizializzaizone della Inverted Page Table
@@ -103,10 +107,10 @@ int pt_init ( void ){
         return 1; //Out of Memory
     }
 
-    if( ! (list_replacement = kmalloc(sizeof(struct ipt_fifo)))){
+    /*if( ! (list_replacement = kmalloc(sizeof(struct ipt_fifo)))){
         list_replacement = NULL; 
         return 1; 
-    }
+    }*/
     
     spinlock_acquire( &stealmem_lock ); 
     for ( i = 0 ; i < nRamFrames ; i++ ){
@@ -114,12 +118,29 @@ int pt_init ( void ){
         ipt[i].invalid = 1;
         ipt[i].readonly= 0;
         ipt[i].flags = 0;
+        ipt[i].counter = 0; 
+
     }
     spinlock_release( &stealmem_lock);
     return 0;
 }
 
-void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly, unsigned char flag ){
+static void upgrade_counter(void){
+    unsigned int i;
+
+    if(ipt == NULL)
+        return;
+
+    spinlock_acquire(&stealmem_lock);
+
+    for(i = 0; i < nRamFrames; i++)
+        if(ipt[i].invalid == 0 && ipt[i].pid != -1)
+            ipt[i].counter++;
+
+    spinlock_release(&stealmem_lock);
+}
+
+void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag ){
 
     unsigned int index = ((unsigned int)paddr)/PAGE_SIZE;
 
@@ -127,53 +148,71 @@ void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, bool readonly, uns
     
     spinlock_acquire( &stealmem_lock); 
     
-    fifo_node_Insert(index); 
+   // fifo_node_Insert(index); 
     
     ipt[index].vaddr = vaddr;
     ipt[index].pid = pid;
-    ipt[index].readonly = readonly;
+    //ipt[index].readonly = readonly;
     ipt[index].invalid = 0;
     ipt[index].flags = flag;
+    //aggiorna i contatori
+    ipt[index].counter = 0 ; 
     
     spinlock_release(&stealmem_lock); 
 }
 
  int pt_replace_entry( pid_t pid){
     unsigned int i;
-    struct ipt_t ipt_entry;
-    int max = 0;
-    int replace_index;
-     
-     for(i = 0 ; i < nRamFrames ; i++){
-         if( ipt[i].invalid == 1){}
-     }
+    unsigned int max = 0;
+    int replace_index = nRamFrames;
+
+     for (i=0; i<nRamFrames; i++){
+       if( max < (ipt[i].counter) && pid == ipt[i].pid){
+        max = ipt[i].counter; 
+        replace_index = i; 
+       }
+    }
          //quando viene sostiutuita una pagina nella memoria fisica
     //viene rimpiazzata la entry nella page table
-   return 0; 
+   return replace_index; 
  }
 
-paddr_t pt_get_paddr ( vaddr_t vaddr, pid_t pid ){
-    unsigned int i = 0 ;
-    paddr_t p; 
+unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t paddr){
+    unsigned int i = 0;
+    //paddr_t p; 
 
 
-    spinlock_acquire( &pt_lock ); 
+    spinlock_acquire( &stealmem_lock ); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
-            p = (i*PAGE_SIZE) ;
-            return p ;
+            paddr= (i*PAGE_SIZE) ;
+            return 1;
          }
         i++;
     }
-    spinlock_release( &pt_lock ); 
+    spinlock_release( &stealmem_lock ); 
 
+    if(i==nRamFrames){
+    	i = pt_replace_entry(pid);
+
+        if(i ==nRamFrames){
+            return 0;
+        }
+    }
+	
+    
+    *paddr = i * PAGE_SIZE;
+    /*    // pid don't change
+       *flags = ipt->v[j].flags;
+       res = 1; */
+    
     return 1;  // non presente in memoria
-}
+} 
 
 int pt_remove_entry (vaddr_t vaddr, pid_t pid){
     unsigned int i = 0 ;
     
-    spinlock_acquire( &pt_lock); 
+    spinlock_acquire( &stealmem_lock); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             ipt[i].invalid = 1 ;
@@ -181,7 +220,7 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
         }
         i++;
     }
-    spinlock_release( &pt_lock); 
+    spinlock_release( &stealmem_lock); 
 
     return 1; 
 }
@@ -189,13 +228,26 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
 void pt_destroy ( void ){
     unsigned int i = 0 ;
 
-    spinlock_acquire( &pt_lock); 
+    spinlock_acquire( &stealmem_lock); 
     for (i=0; i<nRamFrames; i++){
         kfree((void*)&ipt[i]);
     }
-    spinlock_release( &pt_lock); 
+    spinlock_release( &stealmem_lock); 
     
 }
+
+unsigned char pt_getFlagsByIndex(int index){
+    return ipt[index].flags;
+}
+
+vaddr_t pt_getVaddrByIndex(int index){
+    return ipt[index].vaddr;
+}
+
+pid_t pt_getPidByIndex(int index){
+    return ipt[index].pid;
+}
+
 //struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
 //spinlock per page table?
     //int count = 0 ;
@@ -253,5 +305,14 @@ int pt_destroy (){}
 //set TLB index
 //set flags at index
 
+unsigned char pagetable_getFlagsByIndex(int index){
+    return ipt->v[index].flags;
+}
+
+void pagetable_setTlbIndex(int index, unsigned char val){
+    ipt->v[index].flags &= 0x03; //clean
+    ipt->v[index].flags |= (val << 2); //set
+}
  */
+
 
