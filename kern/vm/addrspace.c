@@ -40,6 +40,7 @@
 #include <spl.h>
 #include <cpu.h>
 #include <thread.h>
+#
 //#include <vfs.h>
 #include <uio.h>
 
@@ -49,12 +50,12 @@
 // Define
 /* under dumbvm, always have 72k of user stack */
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
-#define DUMBVM_STACKPAGES    18
+#define DUMBVM_STACKPAGES 18
 
 // Variabili globali
 tlb_report vmstats_report;
 
-//static bool vm_activated = 0;
+// static bool vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
 void vm_bootstrap(void)
@@ -63,34 +64,34 @@ void vm_bootstrap(void)
 	kprintf("\naddrspace -> vm_bootstrap(void)\n");
 #endif
 
-	//Inizializzazione della CoreMap
+	// Inizializzazione della CoreMap
 	if (coremap_init() != COREMAP_INIT_SUCCESS)
 		panic("cannot init vm system. Low memory!\n");
 
-	//inizializza tutte le strutture necessarie ( da fare prima ?)
+	// inizializza tutte le strutture necessarie ( da fare prima ?)
 
-	//Inizializzazione della Page Table
+	// Inizializzazione della Page Table
 	if (pt_init() != 0)
-	{ //deve avere la dimensione della memoria fisica
+	{ // deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
 	}
 
 	/**
 	 * @brief Continuare con gli altri file
-	 * 
+	 *
 	 */
 
-	//Inizializzazione del file di Swap
-	//if(swapfile_init(/*SWAP_SIZE*/ 0)){
-	//panic("cannot init vm system. Low memory!\n");
+	// Inizializzazione del file di Swap
+	// if(swapfile_init(/*SWAP_SIZE*/ 0)){
+	// panic("cannot init vm system. Low memory!\n");
 	//	}
 
-	//Inizializzazione della TLB
-	// if (tlb_map_init()){
-	// 	panic("cannot init vm system. Low memory!\n");
-	// }
+	// Inizializzazione della TLB
+	//  if (tlb_map_init()){
+	//  	panic("cannot init vm system. Low memory!\n");
+	//  }
 
-	//vm_activated = 1;
+	// vm_activated = 1;
 
 	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;
 	// pf_d = pf_e = 0;
@@ -114,42 +115,107 @@ vm_can_sleep(void)
 	}
 }
 
-
-static void vm_fault_page_replacement(struct addrspace* as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid){
-	int  indexReplacement,
+static paddr_t vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+{
+	int indexReplacement,
 		ix;
 	vaddr_t paddr;
+	size_t to_read;
 
-	if (faultaddress >= vbase && faultaddress < vtop) {
+	if (faultaddress >= vbase && faultaddress < vtop)
+	{
 		// Aggiunge un nuovo processo
 		as->count_proc++;
 
-		if(as->count_proc >= MAX_PROC_PT){
+		if (as->count_proc >= MAX_PROC_PT)
+		{
 			indexReplacement = pt_replace_entry(pid);
 			paddr = indexReplacement * PAGE_SIZE;
-			
+
 			ix = pt_getFlagsByIndex(indexReplacement) >> 2;
 			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), paddr, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
-			as->count_proc--;		
+			as->count_proc--;
 		}
-		else{
+		else
+		{
 			paddr = coremap_getppages(1);
-				if (paddr==0){
-					//indexReplacement contiene indice (in ipt) della pagina da sacrificare
-					indexReplacement = pt_replace_entry(pid);
-					// ix contiene indice in tlb della pagina da sacrificare
-					
-					ix = pt_getFlagsByIndex(indexReplacement) >> 2;
-					swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement*PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
-					as->count_proc--;
-					paddr = indexReplacement*PAGE_SIZE;
+			if (paddr == 0)
+			{
+				// indexReplacement contiene indice (in ipt) della pagina da sacrificare
+				indexReplacement = pt_replace_entry(pid);
+				// ix contiene indice in tlb della pagina da sacrificare
+
+				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
+				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+				as->count_proc--;
+				paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
 		vmstats_report.pf_zero++;
 		as_zero_region(paddr, 1);
 
+		/* Con il precedente algoritmo di rimpiazzamento si creava un disealineamento */
 
+		if (faultaddress == vbase1)
+		{
+			if (as->code_size < PAGE_SIZE - (as->code_offset & ~PAGE_FRAME))
+				to_read = as->code_size;
+			else
+				to_read = PAGE_SIZE - (as->code_offset & ~PAGE_FRAME);
+		}
+		else if (faultaddress == vtop - PAGE_SIZE)
+		{
+			to_read = as->code_size - (as->as_npages1 - 1) * PAGE_SIZE;
+
+			if (as->code_offset & ~PAGE_FRAME)
+				to_read -= (as->code_offset & ~PAGE_FRAME);
+		}
+		else
+			to_read = PAGE_SIZE;
+
+		result = load_page_from_elf(as->v, 
+			paddr + (faultaddress == vbase1 ? as->code_offset & ~PAGE_FRAME : 0),
+			to_read,
+			faultaddress == vbase1 ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase1))
+	
+		vmstats_report.pf_disk++;
+		vmstats_report.pf_elf++;
+
+		flags = 0x01; // Read-only
+		if (ix != -1)
+			flags |= ix << 2;
+		result = pt_add_entry(faultaddress, paddr, pid, flag);
+
+		if (result < 0)
+			return -1;
+		return paddr;
+	}
+	else
+		return -2;
 }
+
+static paddr_t vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+{
+	(as) void;
+	(faultaddress) void;
+	(vbase) void;
+	(vtop) void;
+	(pid) void;
+
+	return 0;
+}
+
+static paddr_t vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+{
+	(as) void;
+	(faultaddress) void;
+	(vbase) void;
+	(vtop) void;
+	(pid) void;
+
+	return 0;
+}
+
 // int vm_is_active(void)
 // {
 // 	//si può usare per verificare chela mmeoria virtuale sia stata bootstrappata
@@ -210,16 +276,16 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	/* Assert that the address space has been set up properly. */
 	KASSERT(as->as_vbase1 != 0);
-	//KASSERT(as->as_pbase1 != 0);
+	// KASSERT(as->as_pbase1 != 0);
 	KASSERT(as->as_npages1 != 0);
 	KASSERT(as->as_vbase2 != 0);
-	//KASSERT(as->as_pbase2 != 0);
+	// KASSERT(as->as_pbase2 != 0);
 	KASSERT(as->as_npages2 != 0);
-	//KASSERT(as->as_stackpbase != 0);
+	// KASSERT(as->as_stackpbase != 0);
 	KASSERT((as->as_vbase1 & PAGE_FRAME) == as->as_vbase1);
-	//KASSERT((as->as_pbase1 & PAGE_FRAME) == as->as_pbase1);
+	// KASSERT((as->as_pbase1 & PAGE_FRAME) == as->as_pbase1);
 	KASSERT((as->as_vbase2 & PAGE_FRAME) == as->as_vbase2);
-	//KASSERT((as->as_pbase2 & PAGE_FRAME) == as->as_pbase2);
+	// KASSERT((as->as_pbase2 & PAGE_FRAME) == as->as_pbase2);
 	KASSERT((as->as_stackpbase & PAGE_FRAME) == as->as_stackpbase);
 
 	vbase1 = as->as_vbase1;
@@ -235,52 +301,75 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	int ix = -1;
 
-	if(pt_get_paddr(faultaddress, pid, p_temp)){
+	if (pt_get_paddr(faultaddress, pid, p_temp))
+	{
 		// Page hit
 		paddr = p_temp;
 		vmstats_report.tlb_reload;
 	}
 
-	else if(swapfile_swapin(faultaddress, &p_temp, pid, as)){
+	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
+	{
 		paddr = p_temp;
-		flags = pt_getpt_getFlagsByIndex(paddr>>12);
+		flags = pt_getpt_getFlagsByIndex(paddr >> 12);
 		vmstats_report.pf_disk++;
 	}
 
-	
+	// Page replacement per il code
+	paddr = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid);
 
+	if (paddr == -1)
+		return -1;
 
+	else if (paddr == -2)
+	{
+		paddr = vm_fault_page_replacement_data(as, fauladdress, vbase2, vtop2, pid);
 
+		if (paddr == -1)
+			return -1;
+		else if (paddr == -2)
+		{
+			paddr = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid);
 
+			if (paddr == -1)
+				return -1;
+			else if(paddr == -2)
+				return EFAULT;
+		}
+	}
 
+	// COntinuare ...
 
+	// Page replacement per i data
+	// Le implementazioni tra i due sono distinte. occorre definire 2 strutture diverse
+	// vm_fault_page_replacement_code(as, faultaddress, vbase2, vtop2, pid);
 
 	(void)vbase1;
 	(void)vtop1;
 	(void)vbase2;
 	(void)vtop2;
-	(void)stackbase; 
+	(void)stackbase;
 	(void)stacktop;
 	(void)paddr;
 	(void)ehi;
 	(void)elo;
 	(void)*as;
 
-	(void) indexR;
+	(void)indexR;
 	(void)to_read;
 
 	(void)result;
 
 	// Da continuare :(
 
-	//gestore dell'eccezione di MISS
-	//TLB miss handler
-	//if spazio libero
-	//if not
-	//round robin replacement
+	// gestore dell'eccezione di MISS
+	// TLB miss handler
+	// if spazio libero
+	// if not
+	// round robin replacement
 
-	//deve anche controllare che tutte le entry si riferiscano al processo corrente (?)
-	//non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
+	// deve anche controllare che tutte le entry si riferiscano al processo corrente (?)
+	// non capisco se lo deve controllare quando bisogna aggiungere una nuova entry, se la entry si riferisce ad un nuovo processo, allora invalido tutte le altre che non si riferiscono a quello ???
 	return faulttype;
 }
 
@@ -296,7 +385,7 @@ vaddr_t alloc_kpages(unsigned npages)
 {
 	paddr_t pa;
 
-	vm_can_sleep(); //dumbvm_can_sleep(); Rinominata in vm_can_sleep() per distinguerla dalla dumbvm
+	vm_can_sleep(); // dumbvm_can_sleep(); Rinominata in vm_can_sleep() per distinguerla dalla dumbvm
 	pa = coremap_getppages(npages);
 
 	if (!pa)
@@ -310,13 +399,13 @@ vaddr_t alloc_kpages(unsigned npages)
 	// 	//routine post vm_bootstrap
 	// 	//prevede di utilizare page_nalloc
 	// }
-	//else
+	// else
 	//{
 
-	//routine pre vm_bootstrap
-	//prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
-	// }
-	// return 2;
+	// routine pre vm_bootstrap
+	// prevede di utilizzare getppages ( penso si possa recuperare il pezzo da dumbvm )
+	//  }
+	//  return 2;
 }
 
 /* Free kernel heap pages (called by kmalloc/kfree) */
@@ -324,17 +413,17 @@ void free_kpages(vaddr_t addr)
 {
 	if (coremap_isTableActive())
 	{
-		//paddr_t paddr = add - MIPS_KSEG0;
+		// paddr_t paddr = add - MIPS_KSEG0;
 		coremap_freepages(addr - MIPS_KSEG0);
 
-		//routine post vm_bootstrap
-		//prevede di utilizare page_free --> ricordiamo che si deve tenere conto di quante sono le pagine contigue allocate quando si allocano in page_nalloc
+		// routine post vm_bootstrap
+		// prevede di utilizare page_free --> ricordiamo che si deve tenere conto di quante sono le pagine contigue allocate quando si allocano in page_nalloc
 	}
 	else
 	{
-		//routine pre vm_bootstrap
-		//prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
-		//coremap_freepages(addr - MIPS_KSEG0); // IN dumbvm era stata inserita nel blocco if e non else
+		// routine pre vm_bootstrap
+		// prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
+		// coremap_freepages(addr - MIPS_KSEG0); // IN dumbvm era stata inserita nel blocco if e non else
 	}
 	//(int)addr++;
 }
@@ -366,10 +455,10 @@ as_create(void)
 	 * Initialize as needed.
 	 */
 
-	//kmalloc inizializza address space
-	//page_alloc alloca una pagina fisica --> che tecnicamente deve essere usata per la page table del processo, ma non dovrebbe servire dato che usiamo un'inverted page table
-	//salva in struct addrspace l'indirizzo della page table (?)
-	//as_define_region per salvare nell'addresspace le regioni userdefined
+	// kmalloc inizializza address space
+	// page_alloc alloca una pagina fisica --> che tecnicamente deve essere usata per la page table del processo, ma non dovrebbe servire dato che usiamo un'inverted page table
+	// salva in struct addrspace l'indirizzo della page table (?)
+	// as_define_region per salvare nell'addresspace le regioni userdefined
 
 	return as;
 }
@@ -429,7 +518,7 @@ void as_activate(void)
 			continue;
 		}
 		else
-			vmtlb_clean(i); //tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+			vmtlb_clean(i); // tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
 	}
 	if (full_inv)
 		vmstats_report.tlb_invalidation++;
@@ -446,7 +535,7 @@ void as_deactivate(void)
 	 */
 }
 
-/* 
+/*
  * Set up a segment at virtual address VADDR of size MEMSIZE. The
  * segment in memory extends from VADDR up to (but not including)
  * VADDR+MEMSIZE.
