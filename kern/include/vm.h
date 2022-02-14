@@ -52,7 +52,7 @@
 
 #define SWAP_FILE 9*1024*1024
 #define SWAP_PAGE_SIZE 4*1024
-#define SWAP_SIZE SWAP_FILE / SWAP_PAGE_SIZE    /* dimensione dello swapfile: 9MB/4kB = 9*1024*1024/4096 */
+#define SWAP_SIZE 9*1024/4    /* dimensione dello swapfile: 9MB/4kB = 9*1024*1024/4096 */
 
 #endif
 

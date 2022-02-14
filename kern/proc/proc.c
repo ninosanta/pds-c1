@@ -70,7 +70,7 @@ static struct
 	struct spinlock lock_ptable;
 } processTable;
 
-/*static pid_t proc_get_pid(struct proc *p)
+static pid_t proc_get_pid(struct proc *p)
 {
 	// Spazio per allocare un processo insufficiente
 	if (processTable.process_index >= MAX_PROCESS + 1)
@@ -96,7 +96,7 @@ static struct
 	spinlock_release(&processTable.lock_ptable);
 	return 1;
 }
-
+/*
 static int proc_remove_pid(struct proc *p)
 {
 	if (p == NULL)
@@ -176,6 +176,12 @@ proc_create(const char *name)
 	/* VFS fields */
 	proc->p_cwd = NULL;
 
+	proc->pid = proc_get_pid(proc);
+	if(proc->pid<0) {
+		kfree(proc);
+		return NULL;
+	}
+	
 	return proc;
 }
 
@@ -273,7 +279,18 @@ void proc_destroy(struct proc *proc)
  * Create the process structure for the kernel.
  */
 void proc_bootstrap(void)
-{
+{	
+	// Init proc
+	spinlock_init(&processTable.lock_ptable);	
+	processTable.active = 1;
+	processTable.process_index = 0;
+	int i;	
+	spinlock_acquire(&processTable.lock_ptable);
+	for(i=0; i < MAX_PROCESS+1;i++){
+        	processTable.process[i]=NULL;
+	}
+	spinlock_release(&processTable.lock_ptable);
+	
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL)
 	{

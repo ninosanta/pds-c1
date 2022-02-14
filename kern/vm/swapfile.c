@@ -53,7 +53,7 @@ static const char swapfilename[] = "emu0:SWAPFILE";
  * Implementazione delle funzioni                           *
  *                                                          *
  ************************************************************/
-int swapfile_init(int length) {
+int swapfile_init(long length) {
     int i;
     char path[sizeof(swapfilename)];
 
@@ -99,8 +99,8 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             as->count_proc++;
             // Verifica se l'aggiunta della pagina comporta il superamento della soglia massima in pt
             if (as->count_proc>=MAX_PROC_PT){
-                indexR = pagetable_replacement(pid);
-                swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
+                indexR = pt_replace_entry(pid);
+                swapfile_swapout(pt_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                 as->count_proc--;
                 *paddr = indexR*PAGE_SIZE;
             }
@@ -108,8 +108,8 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
                 //Richiedi una pagina fisica libera alla coremap
                 *paddr = coremap_getppages(1); 
                 if (*paddr==0){ // Non ci sono pagine liberi nel vettore corempa_allocSize
-                    indexR = pagetable_replacement(pid);
-                    swapfile_swapout(pagetable_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pagetable_getFlagsByIndex(indexR));
+                    indexR = pt_replace_entry(pid);
+                    swapfile_swapout(pt_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                     as->count_proc--;
                     *paddr = indexR*PAGE_SIZE;
                 }
@@ -135,7 +135,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             // add the recently swapped-in page in the IPT
             vmstats_report.pf_swapin++; // Incremento numero di swapin effettuate
 
-            pagetable_addentry(vaddr, *paddr, pid, sw[*paddr/PAGE_SIZE].flags);
+            pt_add_entry(vaddr, *paddr, pid, sw[*paddr/PAGE_SIZE].flags);
             return SWAPMAP_SUCCESS;
         }
     }
@@ -150,7 +150,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
 
 int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags){
 
- unsigned int frame_index, i, err;
+ unsigned int frame_index = 0, i, err;
     struct iovec iov;
     struct uio ku;
 
@@ -192,7 +192,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     // associarlo al numero di pagina in backing store
     vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]    
 
-    pagetable_remove_entry(paddr / PAGE_SIZE);
+    pt_remove_entry(vaddr, paddr / PAGE_SIZE);
     vmstats_report.pf_swapout++;
     return 1;
 

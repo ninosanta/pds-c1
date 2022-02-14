@@ -40,7 +40,8 @@
 #include <spl.h>
 #include <cpu.h>
 #include <thread.h>
-#
+#include <vnode.h>
+
 //#include <vfs.h>
 #include <uio.h>
 
@@ -55,7 +56,7 @@
 // Variabili globali
 tlb_report vmstats_report;
 
-// static bool vm_activated = 0;
+static unsigned int vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
 void vm_bootstrap(void)
@@ -82,25 +83,28 @@ void vm_bootstrap(void)
 	 */
 
 	// Inizializzazione del file di Swap
-	// if(swapfile_init(/*SWAP_SIZE*/ 0)){
-	// panic("cannot init vm system. Low memory!\n");
-	//	}
+	 if(swapfile_init(SWAP_SIZE)){
+		panic("cannot init vm system. Low memory!\n");
+	}
 
-	// Inizializzazione della TLB
-	//  if (tlb_map_init()){
-	//  	panic("cannot init vm system. Low memory!\n");
-	//  }
+	//Inizializzazione della TLB
+	 if (vmtlb_init()){
+		panic("cannot init vm system. Low memory!\n");
+	}
 
-	// vm_activated = 1;
+	vm_activated = 1;
 
-	// tlb_f = tlb_ff = tlb_fr = tlb_r = tlb_i = pf_z = 0;
-	// pf_d = pf_e = 0;
+	// Inizializzazione parametri utili per le statistiche
+	vmstats_report.tlb_fault = 0;
+	vmstats_report.tlb_faultFree = 0;
+	vmstats_report.tlb_faultReplacement = 0;
+	vmstats_report.tlb_reload = 0;
+	vmstats_report.tlb_invalidation = 0;
+	vmstats_report.pf_zero = 0;
+	vmstats_report.pf_disk = 0;
+	vmstats_report.pf_elf = 0;
 }
 
-/*void as_zero_region(paddr_t paddr, unsigned npages)
-{
-	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
-}*/
 
 static void
 vm_can_sleep(void)
@@ -115,12 +119,38 @@ vm_can_sleep(void)
 	}
 }
 
-static paddr_t vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+static int load_page_from_elf(struct vnode* v, paddr_t dest, size_t len, off_t offset){
+	
+	struct iovec iov;
+	struct uio ku;
+	int res;
+
+	uio_kinit(&iov, &ku, (void*)PADDR_TO_KVADDR(dest), len, offset, UIO_READ);
+	res = VOP_READ(v, &ku);
+	if (res){
+		return res;
+	}
+
+	if (ku.uio_resid!=0){
+		return ENOEXEC;
+	}
+
+	return res;
+}
+
+void
+as_zero_region(paddr_t paddr, unsigned npages)
+{
+	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
+}
+
+static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t* paddr)
 {
 	int indexReplacement,
-		ix;
-	vaddr_t paddr;
+		ix = -1;
 	size_t to_read;
+	int result;
+	unsigned char flags = 0;
 
 	if (faultaddress >= vbase && faultaddress < vtop)
 	{
@@ -130,15 +160,15 @@ static paddr_t vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faul
 		if (as->count_proc >= MAX_PROC_PT)
 		{
 			indexReplacement = pt_replace_entry(pid);
-			paddr = indexReplacement * PAGE_SIZE;
+			*paddr = indexReplacement * PAGE_SIZE;
 
 			ix = pt_getFlagsByIndex(indexReplacement) >> 2;
-			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), paddr, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), *paddr, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 			as->count_proc--;
 		}
 		else
 		{
-			paddr = coremap_getppages(1);
+			*paddr = coremap_getppages(1);
 			if (paddr == 0)
 			{
 				// indexReplacement contiene indice (in ipt) della pagina da sacrificare
@@ -148,15 +178,15 @@ static paddr_t vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faul
 				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
 				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 				as->count_proc--;
-				paddr = indexReplacement * PAGE_SIZE;
+				*paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
 		vmstats_report.pf_zero++;
-		as_zero_region(paddr, 1);
+		as_zero_region(*paddr, 1);
 
 		/* Con il precedente algoritmo di rimpiazzamento si creava un disealineamento */
 
-		if (faultaddress == vbase1)
+		if (faultaddress == vbase)
 		{
 			if (as->code_size < PAGE_SIZE - (as->code_offset & ~PAGE_FRAME))
 				to_read = as->code_size;
@@ -173,47 +203,150 @@ static paddr_t vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faul
 		else
 			to_read = PAGE_SIZE;
 
-		result = load_page_from_elf(as->v, 
-			paddr + (faultaddress == vbase1 ? as->code_offset & ~PAGE_FRAME : 0),
-			to_read,
-			faultaddress == vbase1 ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase1))
-	
+		result = load_page_from_elf(as->v,
+									*paddr + (faultaddress == vbase ? as->code_offset & ~PAGE_FRAME : 0),
+									to_read,
+									(faultaddress == vbase) ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase);
+
 		vmstats_report.pf_disk++;
 		vmstats_report.pf_elf++;
 
 		flags = 0x01; // Read-only
 		if (ix != -1)
 			flags |= ix << 2;
-		result = pt_add_entry(faultaddress, paddr, pid, flag);
+		result = pt_add_entry(faultaddress, *paddr, pid, flags);
 
 		if (result < 0)
 			return -1;
-		return paddr;
+
+		return 0;
 	}
 	else
-		return -2;
+		return EFAULT;
 }
 
-static paddr_t vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t* paddr)
 {
-	(as) void;
-	(faultaddress) void;
-	(vbase) void;
-	(vtop) void;
-	(pid) void;
+	int indexReplacement,
+		ix = -1;
+	
+	int result;
+	size_t to_read;
+	unsigned char flags = 0;
 
-	return 0;
+	if (faultaddress >= vbase && faultaddress < vtop)
+	{
+		as->count_proc++;
+		if (as->count_proc >= MAX_PROC_PT)
+		{
+			indexReplacement = pt_replace_entry(pid);
+			ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index. Da capire
+			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+			as->count_proc--;
+			*paddr = indexReplacement * PAGE_SIZE;
+		}
+		else
+		{
+			*paddr = coremap_getppages(1);
+			if (*paddr == 0)
+			{
+				indexReplacement = pt_replace_entry(pid);
+				ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
+				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+				as->count_proc--;
+				*paddr = indexReplacement * PAGE_SIZE;
+			}
+		}
+		//-------------------------------------------
+		vmstats_report.pf_zero++;
+
+		as_zero_region(*paddr, 1);
+
+		if (faultaddress == vbase)
+		{
+			if (as->data_size < PAGE_SIZE - (as->data_offset & ~PAGE_FRAME))
+				to_read = as->data_size;
+			else
+				to_read = PAGE_SIZE - (as->data_offset & ~PAGE_FRAME);
+		}
+		else if (faultaddress == vtop - PAGE_SIZE)
+		{
+			to_read = as->data_size - (as->as_npages2 - 1) * PAGE_SIZE;
+			if (as->data_offset & ~PAGE_FRAME)
+				to_read -= (as->data_offset & ~PAGE_FRAME);
+		}
+		else
+			to_read = PAGE_SIZE;
+
+		result = load_page_from_elf(as->v, *paddr + (faultaddress == vbase ? as->data_offset & ~PAGE_FRAME : 0),
+									to_read,
+									faultaddress == vbase ? as->data_offset : (as->data_offset & PAGE_FRAME) + faultaddress - vbase);
+
+		vmstats_report.pf_disk++;
+		vmstats_report.pf_elf++;
+
+		if (ix != -1)
+			flags |= ix << 2;
+		result = pt_add_entry(faultaddress, *paddr, pid, flags);
+		// ?
+		if (result < 0)
+			return -1;
+
+		return 0;
+	}
+	else
+		return EFAULT;
 }
 
-static paddr_t vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid)
+static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t stackbase, vaddr_t stacktop, pid_t pid, paddr_t* paddr)
 {
-	(as) void;
-	(faultaddress) void;
-	(vbase) void;
-	(vtop) void;
-	(pid) void;
+	int indexReplacement,
+		ix = -1;
+	
+	int result;
+	unsigned char flags = 0;
 
-	return 0;
+	if (faultaddress >= stackbase && faultaddress < stacktop)
+	{
+
+		as->count_proc++;
+		if (as->count_proc >= MAX_PROC_PT)
+		{
+			indexReplacement = pt_replace_entry(pid);
+			ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
+			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+			as->count_proc--;
+			*paddr = indexReplacement * PAGE_SIZE;
+		}
+		else
+		{
+			*paddr = coremap_getppages(1);
+			if (*paddr == 0)
+			{
+				indexReplacement = pt_replace_entry(pid);
+				ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
+				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+				as->count_proc--;
+				*paddr = indexReplacement * PAGE_SIZE;
+			}
+		}
+		//-------------------------------------------
+
+		as_zero_region(*paddr, 1);
+
+		vmstats_report.pf_disk++;
+
+		if (ix != -1)
+			flags |= ix << 2;
+		result = pt_add_entry(faultaddress, *paddr, pid, flags); // qui puoi scrivere
+		if (result < 0)
+			return -1;
+		
+		return 0;
+
+	}
+	else
+		return EFAULT;
 }
 
 // int vm_is_active(void)
@@ -232,11 +365,8 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	uint32_t ehi, elo;
 	struct addrspace *as;
+	int status;
 
-	int indexR;
-	size_t to_read;
-
-	int result;
 
 	faultaddress &= PAGE_FRAME;
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
@@ -301,50 +431,71 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	int ix = -1;
 
-	if (pt_get_paddr(faultaddress, pid, p_temp))
+	if (pt_get_paddr(faultaddress, pid, &p_temp))
 	{
 		// Page hit
 		paddr = p_temp;
-		vmstats_report.tlb_reload;
+		vmstats_report.tlb_reload++;
 	}
 
 	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
 	{
 		paddr = p_temp;
-		flags = pt_getpt_getFlagsByIndex(paddr >> 12);
+		flags = pt_getFlagsByIndex(paddr >> 12);
 		vmstats_report.pf_disk++;
 	}
 
 	// Page replacement per il code
-	paddr = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid);
+	status = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid, &paddr);
 
-	if (paddr == -1)
+	if (status == -1)
 		return -1;
 
-	else if (paddr == -2)
+	else if (status == EFAULT)
 	{
-		paddr = vm_fault_page_replacement_data(as, fauladdress, vbase2, vtop2, pid);
+		status = vm_fault_page_replacement_data(as, faultaddress, vbase2, vtop2, pid, &paddr);
 
-		if (paddr == -1)
+		if (status == -1)
 			return -1;
-		else if (paddr == -2)
+		else if (status == EFAULT)
 		{
-			paddr = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid);
+			status = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid, &paddr);
 
-			if (paddr == -1)
+			if (status == -1)
 				return -1;
-			else if(paddr == -2)
+			else if (status == EFAULT)
 				return EFAULT;
 		}
 	}
 
-	// COntinuare ...
+	// Continuare ...
+	/* make sure it's page-aligned */
+	KASSERT((paddr & PAGE_FRAME) == paddr);
+
+	ehi = faultaddress | pid << 6;
+	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //è stato scommentato dalla libreria "tlb.h" --> dobbiamo capire cosa significa
+	if ((flags & 0x01) != 0x01) // se non è settato l'ultimo bit allora la pagina è modificabile
+		elo |= TLBLO_DIRTY;		// page is modifiablebamek
+
+	/* Abbiamo inserito l'informazione sul pid perciò TLBLO_GLOBAL non dovrebbe essere presente. Tuttavia
+per motivi a me oscuri (probabilmente va modificato qualche registro della cpu in modo tale che
+la cpu possa associare il pid del processo in esecuzione e con un pid trovato nelle entry **tale registro è entryhi**)
+se non setto il flag, il sistema va in crash (questo si può spiegare).
+Ad ogni modo, è utile avere il pid a portata così da evitare il flush ad ogni context switch ma
+implementare le system call per sincronizzazione non ha senso, i programmi che si basano e.g. su
+fork sarebbero inutilizzabili (con TLBLO_GLOBAL e due processi che fanno riferimento allo stesso vaddr generano
+errore di entry duplicata in tlb)
+*/
+	vmtlb_write(&ix, ehi, elo);
+	KASSERT(ix != -1);
+	pt_setFlagsAtIndex(paddr >> 12, ix << 2);
+	return 0;
 
 	// Page replacement per i data
 	// Le implementazioni tra i due sono distinte. occorre definire 2 strutture diverse
 	// vm_fault_page_replacement_code(as, faultaddress, vbase2, vtop2, pid);
 
-	(void)vbase1;
+	/*(void)vbase1;
 	(void)vtop1;
 	(void)vbase2;
 	(void)vtop2;
@@ -358,7 +509,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	(void)indexR;
 	(void)to_read;
 
-	(void)result;
+	//(void)result; */
 
 	// Da continuare :(
 

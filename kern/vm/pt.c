@@ -140,7 +140,7 @@ static void upgrade_counter(void){
     spinlock_release(&stealmem_lock);
 }
 
-void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag ){
+int pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag ){
 
     unsigned int index = ((unsigned int)paddr)/PAGE_SIZE;
 
@@ -156,9 +156,13 @@ void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag
     ipt[index].invalid = 0;
     ipt[index].flags = flag;
     //aggiorna i contatori
-    ipt[index].counter = 0 ; 
+    ipt[index].counter =  0; 
+    
+    upgrade_counter();
     
     spinlock_release(&stealmem_lock); 
+
+    return 0;
 }
 
  int pt_replace_entry( pid_t pid){
@@ -166,26 +170,28 @@ void pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag
     unsigned int max = 0;
     int replace_index = nRamFrames;
 
+    spinlock_acquire( &stealmem_lock ); 
      for (i=0; i<nRamFrames; i++){
        if( max < (ipt[i].counter) && pid == ipt[i].pid){
         max = ipt[i].counter; 
         replace_index = i; 
        }
     }
-         //quando viene sostiutuita una pagina nella memoria fisica
+    spinlock_release(&stealmem_lock);
+    
+    //quando viene sostiutuita una pagina nella memoria fisica
     //viene rimpiazzata la entry nella page table
    return replace_index; 
  }
 
-unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t paddr){
+unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     unsigned int i = 0;
-    //paddr_t p; 
 
 
     spinlock_acquire( &stealmem_lock ); 
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
-            paddr= (i*PAGE_SIZE) ;
+            *paddr= (i*PAGE_SIZE) ;
             return 1;
          }
         i++;
@@ -216,6 +222,8 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             ipt[i].invalid = 1 ;
+            
+            ipt[i].counter = 0 ; 
             return 0;
         }
         i++;
@@ -246,6 +254,10 @@ vaddr_t pt_getVaddrByIndex(int index){
 
 pid_t pt_getPidByIndex(int index){
     return ipt[index].pid;
+}
+
+void pt_setFlagsAtIndex(int index, unsigned char val){
+    ipt[index].flags |= val;
 }
 
 //struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale

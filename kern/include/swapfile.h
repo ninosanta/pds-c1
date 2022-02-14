@@ -16,7 +16,7 @@ typedef struct  {
 }swapfile;
 
 
-int swapfile_init(int lenght);
+int swapfile_init(long lenght);
 int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *as);
 int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags);
 
