@@ -79,7 +79,14 @@ runprogram(char *progname)
 	proc_setas(as);
 	as_activate();
 
-	/* Load the executable. */
+	
+
+#if OPT_PAGING
+	as->v = v;
+	read_elf_header(v, &entrypoint);
+	alloc_process_frames();
+#else
+/* Load the executable. */
 	result = load_elf(v, &entrypoint);
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
@@ -87,8 +94,7 @@ runprogram(char *progname)
 		return result;
 	}
 
-	/* Done with the file now. */
-	vfs_close(v);
+#endif
 
 	/* Define the user stack in the address space */
 	result = as_define_stack(as, &stackptr);

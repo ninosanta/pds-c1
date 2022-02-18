@@ -378,6 +378,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		as_destroy(proc_getas());
 		thread_exit();
 	case VM_FAULT_READ:
+		//vmstats_report.tlb_fault++; 
 	case VM_FAULT_WRITE:
 		vmstats_report.tlb_fault++;
 		break;
@@ -471,6 +472,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	// Continuare ...
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
+
 
 	ehi = faultaddress | pid << 6;
 	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //è stato scommentato dalla libreria "tlb.h" --> dobbiamo capire cosa significa
@@ -602,6 +604,7 @@ as_create(void)
 	as->as_npages2 = 0;
 	as->as_stackpbase = 0;
 
+	as->v = NULL; 
 	/*
 	 * Initialize as needed.
 	 */
@@ -618,12 +621,22 @@ int as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *newas;
 
+#if OPT_PAGING
+	KASSERT(old != NULL); 
+	KASSERT(old->as_npages1!= 0); 
+	KASSERT(old-> as_npages2 != 0); 
+	KASSERT(old->as_vbase1!= 0); 
+	KASSERT(old-> as_vbase2!= 0); 
+	KASSERT(old->as_stackpbase != 0 ); 
+
+#endif
 	newas = as_create();
 	if (newas == NULL)
 	{
 		return ENOMEM;
 	}
 
+	
 	/*
 	 * Write this.
 	 */
@@ -640,6 +653,8 @@ void as_destroy(struct addrspace *as)
 	/*
 	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
 	 */
+	//pt_remove_entries(curproc->pid);
+  	//vfs_close(as->v);
 
 	kfree(as);
 }
@@ -696,13 +711,15 @@ void as_deactivate(void)
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
  */
-int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
+int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct vnode *v,
 					 int readable, int writeable, int executable,
 #if OPT_PAGING
 					 off_t offset
 #endif
 )
 {
+	KASSERT( as != NULL); 
+
 	/*
 	 * Write this.
 	 */
@@ -732,6 +749,7 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		as->as_npages1 = npages;
 		as->code_offset = offset;
 		as->code_size = memsize_old;
+		as->v = v; 
 		return 0;
 	}
 
@@ -741,9 +759,11 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		as->as_npages2 = npages;
 		as->data_offset = offset;
 		as->data_size = memsize_old;
+		as->v = v; 
 		return 0;
 	}
 
+//dobbiamo aggiungere il vnode
 	/*
 	 * Support for more than two regions is not available.
 	 */
@@ -753,6 +773,7 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 int as_prepare_load(struct addrspace *as)
 {
+	//Non ci serve perchè stiamo usando la inverted page table
 	/*
 	 * Write this.
 	 */
