@@ -42,7 +42,7 @@
 #include <thread.h>
 #include <vnode.h>
 
-//#include <vfs.h>
+#include <vfs.h>
 #include <uio.h>
 
 #include "vmstats.h"
@@ -654,7 +654,7 @@ void as_destroy(struct addrspace *as)
 	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
 	 */
 	//pt_remove_entries(curproc->pid);
-  	//vfs_close(as->v);
+  	vfs_close(as->v);
 
 	kfree(as);
 }

@@ -80,11 +80,17 @@ runprogram(char *progname)
 	as_activate();
 
 	
+result = load_elf(v, &entrypoint);
+	if (result) {
+		/* p_addrspace will go away when curproc is destroyed */
+		vfs_close(v);
+		return result;
+	}
 
 #if OPT_PAGING
-	as->v = v;
-	read_elf_header(v, &entrypoint);
-	alloc_process_frames();
+	//as->v = v;
+	//read_elf_header(v, &entrypoint);
+	//alloc_process_frames();
 #else
 /* Load the executable. */
 	result = load_elf(v, &entrypoint);

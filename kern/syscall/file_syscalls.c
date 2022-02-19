@@ -11,6 +11,7 @@
 #include <syscall.h>
 #include <lib.h>
 
+#if OPT_SYSCALLS
 /*
  * simple file system calls for write/read
  */
@@ -51,3 +52,4 @@ sys_read(int fd, userptr_t buf_ptr, size_t size)
 
   return (int)size;
 }
+#endif

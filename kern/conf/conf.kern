@@ -408,6 +408,7 @@ defoption syscalls
 
 file	  syscall/file_syscalls.c	
 file	  syscall/proc_syscalls.c
+# file      syscall/syscall.c
 
 #
 # Startup and initialization

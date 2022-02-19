@@ -131,13 +131,13 @@ static void upgrade_counter(void){
     if(ipt == NULL)
         return;
 
-    spinlock_acquire(&stealmem_lock);
+    //spinlock_acquire(&stealmem_lock);
 
     for(i = 0; i < nRamFrames; i++)
         if(ipt[i].invalid == 0 && ipt[i].pid != -1)
             ipt[i].counter++;
 
-    spinlock_release(&stealmem_lock);
+   // spinlock_release(&stealmem_lock);
 }
 
 int pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag ){

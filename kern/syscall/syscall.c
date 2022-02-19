@@ -35,6 +35,8 @@
 #include <current.h>
 #include <syscall.h>
 
+//#include "opt-syscalls.h"
+
 
 /*
  * System call dispatcher.
@@ -109,8 +111,10 @@ syscall(struct trapframe *tf)
 		break;
 
 	    /* Add stuff here */
-#if OPT_SYSCALLS
+//#if OPT_SYSCALLS 
+//#if OPT_PAGING
 	    case SYS_write:
+		case 55:
 	        retval = sys_write((int)tf->tf_a0,
 				(userptr_t)tf->tf_a1,
 				(size_t)tf->tf_a2);
@@ -130,7 +134,7 @@ syscall(struct trapframe *tf)
 	        /* TODO: just avoid crash */
  	        sys__exit((int)tf->tf_a0);
                 break;
-#endif
+//#endif
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
