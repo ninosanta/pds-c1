@@ -367,7 +367,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	uint32_t ehi, elo;
 	struct addrspace *as;
-	int status;
+	int status = 0;
 
 	faultaddress &= PAGE_FRAME;
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
@@ -440,33 +440,35 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		vmstats_report.tlb_reload++;
 	}
 
-	else if (!swapfile_swapin(faultaddress, &p_temp, pid, as))
+	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
 	{
 		paddr = p_temp;
 		flags = pt_getFlagsByIndex(paddr >> 12);
 		vmstats_report.pf_disk++;
 	}
-
-	// Page replacement per il code
-	status = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid, &paddr);
-
-	if (status == -1)
-		return -1;
-
-	else if (status == EFAULT)
+	else
 	{
-		status = vm_fault_page_replacement_data(as, faultaddress, vbase2, vtop2, pid, &paddr);
+		// Page replacement per il code
+		status = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid, &paddr);
 
 		if (status == -1)
 			return -1;
+
 		else if (status == EFAULT)
 		{
-			status = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid, &paddr);
+			status = vm_fault_page_replacement_data(as, faultaddress, vbase2, vtop2, pid, &paddr);
 
 			if (status == -1)
 				return -1;
 			else if (status == EFAULT)
-				return EFAULT;
+			{
+				status = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid, &paddr);
+
+				if (status == -1)
+					return -1;
+				else if (status == EFAULT)
+					return EFAULT;
+			}
 		}
 	}
 

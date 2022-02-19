@@ -185,34 +185,39 @@ int pt_add_entry ( vaddr_t vaddr , paddr_t paddr, pid_t pid, unsigned char flag 
  }
 
 unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
-    unsigned int i = 0;
+    unsigned int i = 0,
+        flag = 0;
 
 
     spinlock_acquire( &stealmem_lock ); 
-    while ( i < nRamFrames){
+    while ( i < nRamFrames && !flag){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             *paddr= (i*PAGE_SIZE) ;
-            return 1;
+            flag = 1;
          }
         i++;
     }
     spinlock_release( &stealmem_lock ); 
 
-    if(i==nRamFrames){
+    if(i == nRamFrames)
+        return 0;
+    else{
+        *paddr = i * PAGE_SIZE;
+        return 1;
+    }
+    /*if(i==nRamFrames){
     	i = pt_replace_entry(pid);
 
         if(i ==nRamFrames){
             return 0;
         }
-    }
-	
+    }*/
     
-    *paddr = i * PAGE_SIZE;
     /*    // pid don't change
        *flags = ipt->v[j].flags;
        res = 1; */
     
-    return 1;  // non presente in memoria
+    return 0;  // non presente in memoria
 } 
 
 int pt_remove_entry (vaddr_t vaddr, pid_t pid){
