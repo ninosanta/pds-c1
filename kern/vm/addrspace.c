@@ -83,12 +83,14 @@ void vm_bootstrap(void)
 	 */
 
 	// Inizializzazione del file di Swap
-	 if(swapfile_init(SWAP_SIZE)){
+	if (swapfile_init(SWAP_SIZE))
+	{
 		panic("cannot init vm system. Low memory!\n");
 	}
 
-	//Inizializzazione della TLB
-	 if (vmtlb_init()){
+	// Inizializzazione della TLB
+	if (vmtlb_init())
+	{
 		panic("cannot init vm system. Low memory!\n");
 	}
 
@@ -105,7 +107,6 @@ void vm_bootstrap(void)
 	vmstats_report.pf_elf = 0;
 }
 
-
 static void
 vm_can_sleep(void)
 {
@@ -119,32 +120,34 @@ vm_can_sleep(void)
 	}
 }
 
-static int load_page_from_elf(struct vnode* v, paddr_t dest, size_t len, off_t offset){
-	
+static int load_page_from_elf(struct vnode *v, paddr_t dest, size_t len, off_t offset)
+{
+
 	struct iovec iov;
 	struct uio ku;
 	int res;
 
-	uio_kinit(&iov, &ku, (void*)PADDR_TO_KVADDR(dest), len, offset, UIO_READ);
+	uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(dest), len, offset, UIO_READ);
 	res = VOP_READ(v, &ku);
-	if (res){
+	if (res)
+	{
 		return res;
 	}
 
-	if (ku.uio_resid!=0){
+	if (ku.uio_resid != 0)
+	{
 		return ENOEXEC;
 	}
 
 	return res;
 }
 
-void
-as_zero_region(paddr_t paddr, unsigned npages)
+void as_zero_region(paddr_t paddr, unsigned npages)
 {
 	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
 }
 
-static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t* paddr)
+static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
 		ix = -1;
@@ -225,11 +228,11 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 		return EFAULT;
 }
 
-static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t* paddr)
+static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
 		ix = -1;
-	
+
 	int result;
 	size_t to_read;
 	unsigned char flags = 0;
@@ -298,11 +301,11 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 		return EFAULT;
 }
 
-static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t stackbase, vaddr_t stacktop, pid_t pid, paddr_t* paddr)
+static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t stackbase, vaddr_t stacktop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
 		ix = -1;
-	
+
 	int result;
 	unsigned char flags = 0;
 
@@ -341,9 +344,8 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 		result = pt_add_entry(faultaddress, *paddr, pid, flags); // qui puoi scrivere
 		if (result < 0)
 			return -1;
-		
-		return 0;
 
+		return 0;
 	}
 	else
 		return EFAULT;
@@ -367,7 +369,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	struct addrspace *as;
 	int status;
 
-
 	faultaddress &= PAGE_FRAME;
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
 
@@ -378,7 +379,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		as_destroy(proc_getas());
 		thread_exit();
 	case VM_FAULT_READ:
-		//vmstats_report.tlb_fault++; 
+		// vmstats_report.tlb_fault++;
 	case VM_FAULT_WRITE:
 		vmstats_report.tlb_fault++;
 		break;
@@ -439,7 +440,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		vmstats_report.tlb_reload++;
 	}
 
-	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
+	else if (!swapfile_swapin(faultaddress, &p_temp, pid, as))
 	{
 		paddr = p_temp;
 		flags = pt_getFlagsByIndex(paddr >> 12);
@@ -473,11 +474,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
 
-
 	ehi = faultaddress | pid << 6;
 	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //è stato scommentato dalla libreria "tlb.h" --> dobbiamo capire cosa significa
-	if ((flags & 0x01) != 0x01) // se non è settato l'ultimo bit allora la pagina è modificabile
-		elo |= TLBLO_DIRTY;		// page is modifiablebamek
+	if ((flags & 0x01) != 0x01)				  // se non è settato l'ultimo bit allora la pagina è modificabile
+		elo |= TLBLO_DIRTY;					  // page is modifiablebamek
 
 	/* Abbiamo inserito l'informazione sul pid perciò TLBLO_GLOBAL non dovrebbe essere presente. Tuttavia
 per motivi a me oscuri (probabilmente va modificato qualche registro della cpu in modo tale che
@@ -604,7 +604,7 @@ as_create(void)
 	as->as_npages2 = 0;
 	as->as_stackpbase = 0;
 
-	as->v = NULL; 
+	as->v = NULL;
 	/*
 	 * Initialize as needed.
 	 */
@@ -622,12 +622,12 @@ int as_copy(struct addrspace *old, struct addrspace **ret)
 	struct addrspace *newas;
 
 #if OPT_PAGING
-	KASSERT(old != NULL); 
-	KASSERT(old->as_npages1!= 0); 
-	KASSERT(old-> as_npages2 != 0); 
-	KASSERT(old->as_vbase1!= 0); 
-	KASSERT(old-> as_vbase2!= 0); 
-	KASSERT(old->as_stackpbase != 0 ); 
+	KASSERT(old != NULL);
+	KASSERT(old->as_npages1 != 0);
+	KASSERT(old->as_npages2 != 0);
+	KASSERT(old->as_vbase1 != 0);
+	KASSERT(old->as_vbase2 != 0);
+	KASSERT(old->as_stackpbase != 0);
 
 #endif
 	newas = as_create();
@@ -636,7 +636,6 @@ int as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	
 	/*
 	 * Write this.
 	 */
@@ -653,8 +652,8 @@ void as_destroy(struct addrspace *as)
 	/*
 	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
 	 */
-	//pt_remove_entries(curproc->pid);
-  	vfs_close(as->v);
+	// pt_remove_entries(curproc->pid);
+	vfs_close(as->v);
 
 	kfree(as);
 }
@@ -718,7 +717,7 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 #endif
 )
 {
-	KASSERT( as != NULL); 
+	KASSERT(as != NULL);
 
 	/*
 	 * Write this.
@@ -749,7 +748,7 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 		as->as_npages1 = npages;
 		as->code_offset = offset;
 		as->code_size = memsize_old;
-		as->v = v; 
+		as->v = v;
 		return 0;
 	}
 
@@ -759,11 +758,11 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 		as->as_npages2 = npages;
 		as->data_offset = offset;
 		as->data_size = memsize_old;
-		as->v = v; 
+		as->v = v;
 		return 0;
 	}
 
-//dobbiamo aggiungere il vnode
+	// dobbiamo aggiungere il vnode
 	/*
 	 * Support for more than two regions is not available.
 	 */
@@ -773,7 +772,7 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 
 int as_prepare_load(struct addrspace *as)
 {
-	//Non ci serve perchè stiamo usando la inverted page table
+	// Non ci serve perchè stiamo usando la inverted page table
 	/*
 	 * Write this.
 	 */
