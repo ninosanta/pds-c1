@@ -222,22 +222,14 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     return 0;  // non presente in memoria
 } 
 
-int pt_remove_entry (vaddr_t vaddr, pid_t pid){
-    unsigned int i = 0 ;
-    
-    spinlock_acquire( &stealmem_lock); 
-    while ( i < nRamFrames){
-        if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
-            ipt[i].invalid = 1 ;
-            
-            ipt[i].counter = 0 ; 
-            return 0;
-        }
-        i++;
-    }
-    spinlock_release( &stealmem_lock); 
+void pt_remove_entry(int replace_index){
+    spinlock_acquire(&stealmem_lock);
 
-    return 1; 
+    ipt[replace_index].pid = -1;
+    ipt[replace_index].flags = 0;
+    ipt[replace_index].vaddr = 0;
+
+    spinlock_release(&stealmem_lock);
 }
 
 void pt_remove_entries(pid_t pid){

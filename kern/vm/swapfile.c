@@ -192,7 +192,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     // associarlo al numero di pagina in backing store
     vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]    
 
-    pt_remove_entry(vaddr, paddr / PAGE_SIZE);
+    pt_remove_entry(paddr / PAGE_SIZE);
     vmstats_report.pf_swapout++;
     return 1;
 
