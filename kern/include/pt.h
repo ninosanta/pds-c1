@@ -19,6 +19,8 @@ int pt_add_entry( vaddr_t vaddr , paddr_t paddr, pid_t pid, /* bool readonly,  *
 
 int pt_replace_entry( pid_t pid); 
 
+void pt_remove_entries(pid_t pid);
+
 unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr);
 
 int pt_remove_entry (vaddr_t vaddr, pid_t pid);

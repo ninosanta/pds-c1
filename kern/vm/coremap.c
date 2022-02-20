@@ -159,7 +159,7 @@ static paddr_t getfreeppages(unsigned long npages){
             freeRamFrames[i]=(unsigned char)RAMFRAMES_FREE;
 
         allocSize[found]=np;
-        addr = found*PAGE_SIZE;
+        addr = (paddr_t)found*PAGE_SIZE;
     }
     else
         addr = 0;

@@ -172,7 +172,7 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 		else
 		{
 			*paddr = coremap_getppages(1);
-			if (paddr == 0)
+			if (*paddr == 0x0)
 			{
 				// indexReplacement contiene indice (in ipt) della pagina da sacrificare
 				indexReplacement = pt_replace_entry(pid);
@@ -605,6 +605,7 @@ as_create(void)
 	as->as_vbase2 = 0;
 	as->as_npages2 = 0;
 	as->as_stackpbase = 0;
+	as->count_proc = 0;
 
 	as->v = NULL;
 	/*
@@ -654,7 +655,7 @@ void as_destroy(struct addrspace *as)
 	/*
 	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
 	 */
-	// pt_remove_entries(curproc->pid);
+	pt_remove_entries(curproc->pid);
 	vfs_close(as->v);
 
 	kfree(as);

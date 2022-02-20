@@ -8,6 +8,8 @@
 #include <spinlock.h>
 #include <clock.h>
 
+#include "coremap.h"
+
 
 // Variabili globali
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
@@ -238,6 +240,26 @@ int pt_remove_entry (vaddr_t vaddr, pid_t pid){
     return 1; 
 }
 
+void pt_remove_entries(pid_t pid){
+    unsigned int i;
+    
+    KASSERT(pid >= 0);
+
+    spinlock_acquire(&stealmem_lock);
+
+    for(i = 0; i < nRamFrames; i++){
+        if(ipt[i].pid == pid){
+            ipt[i].flags = 0;
+            ipt[i].pid = -1;
+            ipt[i].counter = 0;
+
+            coremap_freepages(i * PAGE_SIZE);       
+        }
+    }
+
+    spinlock_release(&stealmem_lock);
+}
+
 void pt_destroy ( void ){
     unsigned int i = 0 ;
 
@@ -264,6 +286,8 @@ pid_t pt_getPidByIndex(int index){
 void pt_setFlagsAtIndex(int index, unsigned char val){
     ipt[index].flags |= val;
 }
+
+
 
 //struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
 //spinlock per page table?
