@@ -5,3 +5,5 @@
 /kern/compile/*/vers.c
 /kern/compile/*/version
 /kern/compile/*/.depend*
+build/userland/testbin/tlbtest/
+userland/testbin/tlbtest/
