@@ -110,14 +110,14 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
                 indexR = pt_replace_entry(pid);
                 swapfile_swapout(pt_getVaddrByIndex(indexR), indexR * PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                 as->count_proc--;
-                *paddr = indexR * PAGE_SIZE;
+                *paddr = indexR * PAGE_SIZE; 
             }
             else
             {
                 // Richiedi una pagina fisica libera alla coremap
                 *paddr = coremap_getppages(1);
                 if (*paddr == 0)
-                { // Non ci sono pagine liberi nel vettore corempa_allocSize
+                { // Non ci sono pagine libere nel vettore corempa_allocSize
                     indexR = pt_replace_entry(pid);
                     swapfile_swapout(pt_getVaddrByIndex(indexR), indexR * PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                     as->count_proc--;

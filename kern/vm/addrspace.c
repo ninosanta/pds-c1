@@ -48,14 +48,12 @@
 #include "vmstats.h"
 #include "vm_tlb.h"
 
-// Define
-/* under dumbvm, always have 72k of user stack */
+/* Under dumbvm, always have 72k of user stack */
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
 #define DUMBVM_STACKPAGES 18
 
 // Variabili globali
 tlb_report vmstats_report;
-
 static unsigned int vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
@@ -69,18 +67,11 @@ void vm_bootstrap(void)
 	if (coremap_init() != COREMAP_INIT_SUCCESS)
 		panic("cannot init vm system. Low memory!\n");
 
-	// inizializza tutte le strutture necessarie ( da fare prima ?)
-
 	// Inizializzazione della Page Table
 	if (pt_init() != 0)
 	{ // deve avere la dimensione della memoria fisica
 		panic("cannot init vm system. Low memory!\n");
 	}
-
-	/**
-	 * @brief Continuare con gli altri file
-	 *
-	 */
 
 	// Inizializzazione del file di Swap
 	if (swapfile_init(SWAP_SIZE))
@@ -107,8 +98,7 @@ void vm_bootstrap(void)
 	vmstats_report.pf_elf = 0;
 }
 
-static void
-vm_can_sleep(void)
+static void vm_can_sleep(void)
 {
 	if (CURCPU_EXISTS())
 	{
@@ -122,7 +112,6 @@ vm_can_sleep(void)
 
 static int load_page_from_elf(struct vnode *v, paddr_t dest, size_t len, off_t offset)
 {
-
 	struct iovec iov;
 	struct uio ku;
 	int res;

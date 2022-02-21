@@ -4,23 +4,24 @@
 #include <types.h>
 #include <kern/errno.h>
 
-
 #define DEBUG_PAGING 1
 
-typedef struct tlb_report{
-    unsigned int tlb_fault; // Numero totale di tlb fault
-    unsigned int tlb_faultFree; // Numero toale di tlb fault con celle libere della tlb
-    unsigned int tlb_faultReplacement; // Numero di tlb fault con rimpiazzamento
-    unsigned int tlb_invalidation;  // Numero di tlb invalidation
-    unsigned int tlb_reload; // Numero di tlb reload
+typedef struct tlb_report
+{
+    unsigned int tlb_fault;            // number of TLB misses that have occurred
+    unsigned int tlb_faultFree;        /* number of TLB misses for which there was free space in the TLB
+                                        * to add the new TLB entry (i.e., no replacement was required) */
+    unsigned int tlb_faultReplacement; // number of TLB misses with replacement
+    unsigned int tlb_invalidation;     // number of times the TLB was invalidated
+    unsigned int tlb_reload;           // number of TLB misses for pages that were already in memory
 
-    unsigned int pf_zero; // Numero di tlb misses che richiedono una pagina riempita di zeri
-    unsigned int pf_disk; // Numero di tlb misses che richiedono una pagina che e' stata caricata da disco
-    unsigned int pf_elf; // Numero di tlb misses che richedono una pagi a dall' elf file
-    unsigned int pf_swapin;
-    unsigned int pf_swapout;
+    unsigned int pf_zero;    // number of TLB misses that required a new page to be zero-filled
+    unsigned int pf_disk;    // number of TLB misses that required a page to be loaded from disk
+    unsigned int pf_elf;     // number of page faults that require getting a page from the ELF file
+    unsigned int pf_swapin;  // number of page faults that require getting a page from the swap file
+    unsigned int pf_swapout; // number of page faults that require writing a page to the swap file
 
-}tlb_report;
+} tlb_report;
 
 extern struct tlb_report vmstats_report;
 

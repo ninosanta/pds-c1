@@ -32,23 +32,6 @@ struct ipt_fifo
     unsigned int size;
 };
 
-// static struct spinlock pt_lock = SPINLOCK_INITIALIZER;
-
-// INVERTED PAGE TABLE  --> PID, P, invalid bit, readonly bit
-//--> one entry for each real page in memory
-// quando ho un TLB MISS devo vedere dentro alla inverted page table, e inserire una nuova entry nella TLB
-// quando faccio partire un processo, devo caricare un processo in memoria fisica
-// quando lo metto in memoria fisica, devo inserire le entry nella inverted page table
-// per la ricerca nella inverted page table bisogna anche creare un meccanismo di hash per l'inserimento e la ricerca delle entry più veloce
-
-// static struct ipt_fifo* list_replacement = NULL;
-
-// page table
-// page table entry --> 20 bit di indirizzo fisico e 12 bit di attributi
-
-// però noi dobbiamo fare quella INVERTED quindi sono da adattare le seguenti cose
-// usata dalle funzioni in address space
-
 static struct ipt_fifo_node *fifo_node_Create(unsigned int index_ipt)
 {
     struct ipt_fifo_node *node;
@@ -98,7 +81,7 @@ static int fifo_node_Remove()
 }
 #endif
 
-// Inizializzaizone della Inverted Page Table
+// Inizializzazione della Inverted Page Table
 int pt_init(void)
 {
     unsigned int i;
@@ -106,19 +89,16 @@ int pt_init(void)
     // Numero di frame della RAM
     nRamFrames = (unsigned int)ram_getsize() / PAGE_SIZE;
 
-    // alloca la page table con dimensione della memoria fisica
+    // Alloca la page table con dimensione della memoria fisica
     if (!(ipt = kmalloc(sizeof(struct ipt_t) * nRamFrames)))
     {
         ipt = NULL;
         return 1; // Out of Memory
     }
 
-    /*if( ! (list_replacement = kmalloc(sizeof(struct ipt_fifo)))){
-        list_replacement = NULL;
-        return 1;
-    }*/
-
     spinlock_acquire(&stealmem_lock);
+
+    // Inizializzazione delle delle della ipt
     for (i = 0; i < nRamFrames; i++)
     {
         ipt[i].pid = -1;
@@ -127,10 +107,13 @@ int pt_init(void)
         ipt[i].flags = 0;
         ipt[i].counter = 0;
     }
+
     spinlock_release(&stealmem_lock);
     return 0;
 }
 
+// Funzione che aggiorna il valore che tiene conto delle pagine
+// più vecchie per sostituzione FIFO
 static void upgrade_counter(void)
 {
     unsigned int i;
@@ -138,29 +121,25 @@ static void upgrade_counter(void)
     if (ipt == NULL)
         return;
 
+    // Aggiornamento del counter d'uso della pagina
     for (i = 0; i < nRamFrames; i++)
         if (ipt[i].invalid == 0 && ipt[i].pid != -1)
             ipt[i].counter++;
-
 }
 
+// Funzione che aggiunge aggiunge una entry nella pagetable all'indirizzo paddr
 int pt_add_entry(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag)
 {
-
     unsigned int index = ((unsigned int)paddr) / PAGE_SIZE;
 
     KASSERT(index < nRamFrames);
 
     spinlock_acquire(&stealmem_lock);
 
-    // fifo_node_Insert(index);
-
     ipt[index].vaddr = vaddr;
     ipt[index].pid = pid;
-    // ipt[index].readonly = readonly;
     ipt[index].invalid = 0;
     ipt[index].flags = flag;
-    // aggiorna i contatori
     ipt[index].counter = 0;
 
     upgrade_counter();
@@ -170,6 +149,10 @@ int pt_add_entry(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag)
     return 0;
 }
 
+//Funzione che, dato il pid del processo, cerca 
+//una pagina del processo stesso da sostituire 
+//all'interno della page table
+//Restituisce l'indice della cella da sostituire
 int pt_replace_entry(pid_t pid)
 {
     unsigned int i;
@@ -177,56 +160,54 @@ int pt_replace_entry(pid_t pid)
     int replace_index = nRamFrames;
 
     spinlock_acquire(&stealmem_lock);
+
     for (i = 0; i < nRamFrames; i++)
     {
+        //Cerca il massimo valore di counter ( strategia FIFO )
+        // e ne salva l'indice
         if (max < (ipt[i].counter) && pid == ipt[i].pid)
         {
-            max = ipt[i].counter;
+            max = ipt[i].counter; 
             replace_index = i;
         }
     }
+
     spinlock_release(&stealmem_lock);
 
-    // quando viene sostiutuita una pagina nella memoria fisica
-    // viene rimpiazzata la entry nella page table
     return replace_index;
 }
 
+//Funzione che, dato il pid del processo e il virtual address della pagina, 
+//restituisce l'indirizzo fisico tramite riferimento 
+//Restituisce 0 se la pagina non si trova in memoria, 1 in caso di successo
 unsigned int pt_get_paddr(vaddr_t vaddr, pid_t pid, paddr_t *paddr)
 {
     unsigned int i = 0,
                  flag = 0;
 
     spinlock_acquire(&stealmem_lock);
+
     while (i < nRamFrames && !flag)
     {
+        //Ho trovato la pagina se il pid e l'indirizzo virtuale corrispondono e se la pagina è valida
         if (ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0)
         {
-            *paddr = (i * PAGE_SIZE);
+            *paddr = (i * PAGE_SIZE); 
             flag = 1;
         }
         i++;
     }
+
     spinlock_release(&stealmem_lock);
 
-    if (i == nRamFrames)
+    if (i == nRamFrames) 
         return 0;
     else
     {
+        //DA CONTROLLARE!!! In questo modo ricalcola l'indirizzo con i+1
         *paddr = i * PAGE_SIZE;
         return 1;
     }
-    /*if(i==nRamFrames){
-        i = pt_replace_entry(pid);
-
-        if(i ==nRamFrames){
-            return 0;
-        }
-    }*/
-
-    /*    // pid don't change
-       *flags = ipt->v[j].flags;
-       res = 1; */
 
     return 0; // non presente in memoria
 }
@@ -296,70 +277,3 @@ void pt_setFlagsAtIndex(int index, unsigned char val)
 {
     ipt[index].flags |= val;
 }
-
-// struct ipt_t* pt_get_entry (pid_t pid, vaddr_t vaddr){ //riceve pid del processo e indirizzo virtuale
-// spinlock per page table?
-// int count = 0 ;
-/*while ( count <  ){
-   if ( ipt-> ipt_e[count].pid == pid ){
-       if ( ipt-> ipt_e[count].vaddr == vaddr){
-           if( ipt->ipt_e[count].invalid == 0)
-                return ipt->ipt_e;
-            else return PT_INVALID_ENTRY;
-       }
-   }
-   count ++;
-}
-return PT_ENTRY_NOT_FOUND; */
-// se c'è la entry corruspondente ritorna il puntatore corrispondente
-// se non c'è ritorna un qualcosa che indichi che non c'è
-
-// questa funzione può essere chiamata per verificare se una pagina è presente in memoria fisica
-// }
-/*
-
-
-int pt_
- add_entry ()
- {
-     //quando viene caricata una pagina fisica nuova
-     //viene aggiunta unan nuova entry nella tlb
- }
-
- int pt_replace_entry( {
-
-    //quando viene sostiutuita una pagina nella memoria fisica
-    //viene rimpiazzata la entry nella page table
- }
-
-
- int pt_get_paddr(){
-     //viene ricevuto un pid + page num + d
-     //si trova la entry corrispondente nella page table
-     //si trova la pagina in memoria fisica
-     //si vuole ritornare l'indirizzo fisico
- }
-
- int pt_remove_entry()
-{}
-
-int pt_destroy (){}
-
-//get virtual address by index
-
-//get physical address by index
-//get pid by index
-
-//get flags(?) by index
-//set TLB index
-//set flags at index
-
-unsigned char pagetable_getFlagsByIndex(int index){
-    return ipt->v[index].flags;
-}
-
-void pagetable_setTlbIndex(int index, unsigned char val){
-    ipt->v[index].flags &= 0x03; //clean
-    ipt->v[index].flags |= (val << 2); //set
-}
- */
