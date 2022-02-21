@@ -51,8 +51,7 @@
  *
  * Calls vfs_open on progname and thus may destroy it.
  */
-int
-runprogram(char *progname)
+int runprogram(char *progname)
 {
 	struct addrspace *as;
 	struct vnode *v;
@@ -61,7 +60,8 @@ runprogram(char *progname)
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
-	if (result) {
+	if (result)
+	{
 		return result;
 	}
 
@@ -70,7 +70,8 @@ runprogram(char *progname)
 
 	/* Create a new address space. */
 	as = as_create();
-	if (as == NULL) {
+	if (as == NULL)
+	{
 		vfs_close(v);
 		return ENOMEM;
 	}
@@ -79,43 +80,40 @@ runprogram(char *progname)
 	proc_setas(as);
 	as_activate();
 
-	
-result = load_elf(v, &entrypoint);
-	if (result) {
-		/* p_addrspace will go away when curproc is destroyed */
-		vfs_close(v);
-		return result;
-	}
-
-#if OPT_PAGING
-	//as->v = v;
-	//read_elf_header(v, &entrypoint);
-	//alloc_process_frames();
-#else
-/* Load the executable. */
 	result = load_elf(v, &entrypoint);
-	if (result) {
+	if (result)
+	{
 		/* p_addrspace will go away when curproc is destroyed */
 		vfs_close(v);
 		return result;
 	}
 
+// Non dobbiamo chiudere il file ELF, perchè caricheremo le pagine quando richieste
+#if !OPT_PAGING
+	/* Load the executable. */
+	result = load_elf(v, &entrypoint);
+	if (result)
+	{
+		/* p_addrspace will go away when curproc is destroyed */
+		vfs_close(v);
+		return result;
+	}
 #endif
 
 	/* Define the user stack in the address space */
 	result = as_define_stack(as, &stackptr);
-	if (result) {
+	if (result)
+	{
 		/* p_addrspace will go away when curproc is destroyed */
 		return result;
 	}
 
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
-			  NULL /*userspace addr of environment*/,
-			  stackptr, entrypoint);
+					  NULL /*userspace addr of environment*/,
+					  stackptr, entrypoint);
 
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");
 	return EINVAL;
 }
-

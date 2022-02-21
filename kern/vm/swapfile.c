@@ -1,15 +1,15 @@
 /**
  * @file swapfile.c
  * @author your name (you@domain.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2021-12-15
- * 
+ *
  * @copyright Copyright (c) 2021
- * 
+ *
  */
 
- // indexR = pagetable_replacement(pid); da sistemare
+// indexR = pagetable_replacement(pid); da sistemare
 
 // Librerie
 #include <types.h>
@@ -38,10 +38,10 @@
 // Define
 
 // Variabili globali
-static swapfile *sw; 
+static swapfile *sw;
 static struct spinlock swapfile_lock;
 unsigned int sw_length;
-struct vnode* swapstore;
+struct vnode *swapstore;
 int fd;
 
 tlb_report vmstats_report;
@@ -53,25 +53,29 @@ static const char swapfilename[] = "emu0:SWAPFILE";
  * Implementazione delle funzioni                           *
  *                                                          *
  ************************************************************/
-int swapfile_init(long length) {
+int swapfile_init(long length)
+{
     int i;
     char path[sizeof(swapfilename)];
 
-    sw = (swapfile *) kmalloc(sizeof(swapfile)*length);
-    if(sw==NULL){
+    sw = (swapfile *)kmalloc(sizeof(swapfile) * length);
+    if (sw == NULL)
+    {
         return 1;
     }
-    
-    for(i=0;i<length;i++){
+
+    for (i = 0; i < length; i++)
+    {
         sw[i].flags = 0;
-	    sw[i].pid = -1;
-	    sw[i].v_pages = 0x0;
+        sw[i].pid = -1;
+        sw[i].v_pages = 0x0;
     }
-    
+
     sw_length = length;
     strcpy(path, swapfilename);
-    fd = vfs_open(path, O_RDWR | O_CREAT ,0, &swapstore);
-    if (fd){
+    fd = vfs_open(path, O_RDWR | O_CREAT, 0, &swapstore);
+    if (fd)
+    {
         kprintf("swap: error %d opening swapfile %s\n", fd, swapfilename);
         kprintf("swap: Please create swapfile/swapdisk\n");
         panic("swapfile_init can't open swapfile");
@@ -84,7 +88,8 @@ int swapfile_init(long length) {
     return SWAPMAP_INIT_SUCCESS;
 }
 
-int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *as){
+int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *as)
+{
     unsigned int i;
     int indexR;
     int res;
@@ -92,42 +97,49 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
     struct uio ku;
 
     // Scansione del vettore di pagine presenti nello backing store
-    for(i=0;i<sw_length;i++){
+    for (i = 0; i < sw_length; i++)
+    {
 
-        //Indirizzo di pagina del processo PID trovato
-        if(sw[i].v_pages==vaddr && sw[i].pid==pid){
+        // Indirizzo di pagina del processo PID trovato
+        if (sw[i].v_pages == vaddr && sw[i].pid == pid)
+        {
             as->count_proc++;
             // Verifica se l'aggiunta della pagina comporta il superamento della soglia massima in pt
-            if (as->count_proc>=MAX_PROC_PT){
+            if (as->count_proc >= MAX_PROC_PT)
+            {
                 indexR = pt_replace_entry(pid);
-                swapfile_swapout(pt_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
+                swapfile_swapout(pt_getVaddrByIndex(indexR), indexR * PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                 as->count_proc--;
-                *paddr = indexR*PAGE_SIZE;
+                *paddr = indexR * PAGE_SIZE;
             }
-            else {
-                //Richiedi una pagina fisica libera alla coremap
-                *paddr = coremap_getppages(1); 
-                if (*paddr==0){ // Non ci sono pagine liberi nel vettore corempa_allocSize
+            else
+            {
+                // Richiedi una pagina fisica libera alla coremap
+                *paddr = coremap_getppages(1);
+                if (*paddr == 0)
+                { // Non ci sono pagine liberi nel vettore corempa_allocSize
                     indexR = pt_replace_entry(pid);
-                    swapfile_swapout(pt_getVaddrByIndex(indexR), indexR*PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
+                    swapfile_swapout(pt_getVaddrByIndex(indexR), indexR * PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                     as->count_proc--;
-                    *paddr = indexR*PAGE_SIZE;
+                    *paddr = indexR * PAGE_SIZE;
                 }
             }
             // clean the page just got by allocation (or previously swapped)
-            as_zero_region(*paddr, 1); //Inizilizza a 0 la pagina
+            as_zero_region(*paddr, 1); // Inizilizza a 0 la pagina
             vmstats_report.pf_zero++;
 
             // perform the I/O
-            uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i*PAGE_SIZE, UIO_READ); 
+            uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i * PAGE_SIZE, UIO_READ);
             res = VOP_READ(swapstore, &ku);
-            if (res) {
+            if (res)
+            {
                 panic("something went wrong while reading from the swapfile");
             }
 
-            if (ku.uio_resid!=0){
+            if (ku.uio_resid != 0)
+            {
                 /* short read; problem with executable? */
-		        kprintf("ELF: short read on header - file truncated?\n");
+                kprintf("ELF: short read on header - file truncated?\n");
                 /* return ENOEXEC; */
             }
             // pid equals to -1 means that the referenced block in the swapfile can be now reused
@@ -135,7 +147,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             // add the recently swapped-in page in the IPT
             vmstats_report.pf_swapin++; // Incremento numero di swapin effettuate
 
-            pt_add_entry(vaddr, *paddr, pid, sw[*paddr/PAGE_SIZE].flags);
+            pt_add_entry(vaddr, *paddr, pid, sw[*paddr / PAGE_SIZE].flags);
             return SWAPMAP_SUCCESS;
         }
     }
@@ -148,16 +160,17 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
     return SWAPMAP_REJECT;
 }
 
-int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags){
+int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags)
+{
 
- unsigned int frame_index = 0, i, err;
+    unsigned int frame_index = 0, i, err;
     struct iovec iov;
     struct uio ku;
 
     if (vaddr > MIPS_KSEG0)
         return -1;
 
-    //CERCO IL PRIMO FRAME LIBERO IN CUI POTER FARE SWAPOUT
+    // CERCO IL PRIMO FRAME LIBERO IN CUI POTER FARE SWAPOUT
     spinlock_acquire(&swapfile_lock);
     for (i = 0; i < sw_length; i++)
     {
@@ -172,7 +185,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     if (i == sw_length)
         panic("Out of swap space");
 
-    //FACCIO SWAPOUT
+    // FACCIO SWAPOUT
     uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(paddr), PAGE_SIZE, frame_index * PAGE_SIZE, UIO_WRITE);
     err = VOP_WRITE(swapstore, &ku);
     if (err)
@@ -190,40 +203,29 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     // Il rapporto tra tlb_page(1kb) e backing store_page (4kb)è di un fattore 4
     // Pertando data il numero di pagina associato alla tlb occorre dividere per 4 così da
     // associarlo al numero di pagina in backing store
-    vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]    
+    vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]
 
     pt_remove_entry(paddr / PAGE_SIZE);
     vmstats_report.pf_swapout++;
     return 1;
 
-    (void)vaddr; 
+    (void)vaddr;
     (void)paddr;
     (void)pid;
     (void)flags;
     return 0;
 }
 
-
-
-
-
-
 // swapfile.c: code for managing and manipulating the swapfile
 
-//vedi CHAPTER 9 --> pagina 55
-
-
+// vedi CHAPTER 9 --> pagina 55
 
 // A process can be swapped temporaly out of memory
-// to a backing store an then brought back into memory 
+// to a backing store an then brought back into memory
 // for continued execution
 
-// swapping is normally disabled, starts whan a threshold of allocated memory is reached 
-//disabled when you're back under the threshold
+// swapping is normally disabled, starts whan a threshold of allocated memory is reached
+// disabled when you're back under the threshold
 
-
-//nello swap file ci devono essere scritte le pagine che devono essere scritte su disco 
-//la politica di rimpiazzamnto è a nostra scelta
-
-
-
+// nello swap file ci devono essere scritte le pagine che devono essere scritte su disco
+// la politica di rimpiazzamnto è a nostra scelta

@@ -3,11 +3,12 @@
 #include "vmstats.h"
 
 /**
- * @brief Inizializzazione della struttura dati. Occorre modificare la struttura dati 
- * 
- * @return struct tlb_report 
+ * @brief Inizializzazione della struttura dati. Occorre modificare la struttura dati
+ *
+ * @return struct tlb_report
  */
-struct tlb_report vmstats_init(void){
+struct tlb_report vmstats_init(void)
+{
     struct tlb_report report;
 
     report.tlb_fault = 0;
@@ -21,7 +22,6 @@ struct tlb_report vmstats_init(void){
     report.pf_elf = 0;
     report.pf_swapin = 0;
     report.pf_swapout = 0;
-
 
     return report;
 }
