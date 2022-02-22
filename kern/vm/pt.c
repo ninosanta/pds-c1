@@ -204,37 +204,25 @@ int pt_replace_any_entry(void){
 //Funzione che, dato il pid del processo e il virtual address della pagina, 
 //restituisce l'indirizzo fisico tramite riferimento 
 //Restituisce 0 se la pagina non si trova in memoria, 1 in caso di successo
-unsigned int pt_get_paddr(vaddr_t vaddr, pid_t pid, paddr_t *paddr)
-{
-    unsigned int i = 0,
-                 flag = 0;
+unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
+    unsigned int i = 0;
 
-    spinlock_acquire(&stealmem_lock);
 
-    while (i < nRamFrames && !flag)
-    {
-        //Ho trovato la pagina se il pid e l'indirizzo virtuale corrispondono e se la pagina è valida
-        if (ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0)
-        {
-            *paddr = (i * PAGE_SIZE); 
-            flag = 1;
-        }
+    spinlock_acquire( &stealmem_lock ); 
+    while ( i < nRamFrames){
+        if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
+            *paddr= (i*PAGE_SIZE);
+            return 1;
+         }
         i++;
     }
+    spinlock_release( &stealmem_lock ); 
 
-    spinlock_release(&stealmem_lock);
-
-    if (i == nRamFrames) 
+    if(i == nRamFrames)
         return 0;
-    else
-    {
-        //DA CONTROLLARE!!! In questo modo ricalcola l'indirizzo con i+1
-        //*paddr = i * PAGE_SIZE;
-        return 1;
-    }
-
-    return 0; // non presente in memoria
-}
+    
+    return 0;  // non presente in memoria
+} 
 
 void pt_remove_entry(int replace_index)
 {
