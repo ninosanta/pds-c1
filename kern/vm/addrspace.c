@@ -141,41 +141,60 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 	int result;
 	unsigned char flags = 0;
 
-	if (faultaddress >= vbase && faultaddress < vtop)
+	//Controllo sul range di indirizzi appartenente allo spazio di codice
+	if (faultaddress >= vbase && faultaddress < vtop) 
 	{
 		// Aggiunge un nuovo processo
 		as->count_proc++;
 
+		//Se il processo ha già un numero di pagine in memoria > o = al numero consentito (32)
+		//allora devo cercare una pagina del processo stesso da rimpiazzare
 		if (as->count_proc >= MAX_PROC_PT)
 		{
+			//Ottengo l'indice e calcolo l'indirizzo di pagina
 			indexReplacement = pt_replace_entry(pid);
 			*paddr = indexReplacement * PAGE_SIZE;
 
+			//Ricavo l'indirizzo della entry nella tlb da modificare
 			ix = pt_getFlagsByIndex(indexReplacement) >> 2;
+
+			//Faccio swapout della pagina selezionata
+			// passando vaddr, paddr, pid, flag
 			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), *paddr, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+			
+			//Diminuisco il numero di pagine assegnate al processo, dato che prima avevo incrementato
 			as->count_proc--;
 		}
 		else
 		{
+			//Se no cerco se è presente uno slot libero tramite la coremap
+			//E ottengo l'indirizzo fisico
 			*paddr = coremap_getppages(1);
+
+			//Se no cerco una pagina appartenente a qualsiasi processo
+			//La strategia implementata è FIFO
 			if (*paddr == 0x0)
 			{
-				// indexReplacement contiene indice (in ipt) della pagina da sacrificare
+				//Ottengo l'indice della pagina da rimpiazzare e calcolo l'indirizzo fisico
 				indexReplacement =  pt_replace_any_entry();
-				//indexReplacement = pt_replace_entry(pid);
-				// ix contiene indice in tlb della pagina da sacrificare
-
-				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
-				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
-				as->count_proc--;
 				*paddr = indexReplacement * PAGE_SIZE;
+				
+				//Ricavo la entry da modificare nella tlb
+				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
+
+				//Faccio swapout
+				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
+				
+				//Incremento il numero di pagine del processo in memoria
+				as->count_proc--;
+				
 			}
 		}
-		vmstats_report_pf_zero_increment();
+		//Incremento il numero di TLB misses che hanno richiesto un azzeramento della pagina
 		as_zero_region(*paddr, 1);
-
-		/* Con il precedente algoritmo di rimpiazzamento si creava un disealineamento */
-
+		vmstats_report_pf_zero_increment();
+		
+		//In base all'indirizzo, calcolo la quantità di codice da leggere
 		if (faultaddress == vbase)
 		{
 			if (as->code_size < PAGE_SIZE - (as->code_offset & ~PAGE_FRAME))
@@ -198,17 +217,22 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 									to_read,
 									(faultaddress == vbase) ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase);
 
+		//Incremento il numero di 
+		//tlb misses che hanno richiesto che una pagina venisse caricata dal disco
+		//tlb misse che hanno richiesto una lettura dell'ELF file
 		vmstats_report_pf_disk_increment();
 		vmstats_report_pf_elf_increment();
 
+		//Aggiungo una entry nella page table
+		//Settando il flag a read-only essendo una pagina di codice
 		flags = 0x01; // Read-only
+
 		if (ix != -1)
 			flags |= ix << 2;
+
 		result = pt_add_entry(faultaddress, *paddr, pid, flags);
-
 		if (result < 0)
-			return -1;
-
+			return EFAULT;
 		return 0;
 	}
 	else
@@ -415,23 +439,28 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	int ix = -1;
 
+	//Controllo che la pagina sia in page table
 	if (pt_get_paddr(faultaddress, pid, &p_temp))
 	{
 		//Se la pagina è stata trovata in memoria
 		paddr = p_temp;
+		//Incremento il numero di tlb miss di pagine che erano già in memoria
 		vmstats_report_tlb_reload_increment();
 	}
 
+	//controllo che la pagina sia nel file di swap
 	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
 	{
-		//se la pagina è stata trovato nello swap file ed è stato fatto lo swap
+		//Se la pagina è stata trovato nello swap file ed è stato fatto lo swap
 		paddr = p_temp;
 		flags = pt_getFlagsByIndex(paddr >> 12);
+		//Incremento il numero di tilb misses che hanno richiesto una lettura da disco
 		vmstats_report_pf_disk_increment();
 	}
 	else
 	{
 		//Gestione del page replacement se la pagina deve essere caricata da disco
+		//CODICE
 		status = vm_fault_page_replacement_code(as, faultaddress, vbase1, vtop1, pid, &paddr);
 
 		if (status == -1)
@@ -439,12 +468,14 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 		else if (status == EFAULT)
 		{
+			//DATI
 			status = vm_fault_page_replacement_data(as, faultaddress, vbase2, vtop2, pid, &paddr);
 
 			if (status == -1)
 				return -1;
 			else if (status == EFAULT)
 			{
+				//STACK
 				status = vm_fault_page_replacement_stack(as, faultaddress, stackbase, stacktop, pid, &paddr);
 
 				if (status == -1)
@@ -457,6 +488,9 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
+
+	
+/*******DA COMMENTARE E SPIEGARE BENE*********/
 
 	ehi = faultaddress | pid << 6;
 	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //è stato scommentato dalla libreria "tlb.h" --> dobbiamo capire cosa significa
@@ -472,9 +506,14 @@ implementare le system call per sincronizzazione non ha senso, i programmi che s
 fork sarebbero inutilizzabili (con TLBLO_GLOBAL e due processi che fanno riferimento allo stesso vaddr generano
 errore di entry duplicata in tlb)
 */
+
+	//Aggiungo la entry nella tabella
 	vmtlb_write(&ix, ehi, elo);
 	KASSERT(ix != -1);
+
+	//Setto i flag della entry nella tabella
 	pt_setFlagsAtIndex(paddr >> 12, ix << 2);
+
 	return 0;
 }
 
@@ -491,8 +530,9 @@ vaddr_t alloc_kpages(unsigned npages)
 	paddr_t pa;
 
 	vm_can_sleep(); // dumbvm_can_sleep(); Rinominata in vm_can_sleep() per distinguerla dalla dumbvm
+	
+	//Cerco npages libere nella coremap
 	pa = coremap_getppages(npages);
-
 	if (!pa)
 		return 0;
 
@@ -505,12 +545,6 @@ void free_kpages(vaddr_t addr)
 	if (coremap_isTableActive())
 	{
 		coremap_freepages(addr - MIPS_KSEG0);
-	}
-	else
-	{
-		// routine pre vm_bootstrap
-		// prevede di utilizzare freeppages( penso si possa recuperare il pezzo da dumbvm )
-		// coremap_freepages(addr - MIPS_KSEG0); // IN dumbvm era stata inserita nel blocco if e non else
 	}
 }
 
@@ -575,11 +609,13 @@ int as_copy(struct addrspace *old, struct addrspace **ret)
 void as_destroy(struct addrspace *as)
 {
 	vm_can_sleep();
-	/*
-	 * Clean up as needed. Da implementare de-allocando la pagetable e vsf (non so cosa sia)
-	 */
+
+#if OPT_PAGING	
+	//Pulisce la page table dalle pagine del processo
 	pt_remove_entries(curproc->pid);
+	//Chiude il file ELF
 	vfs_close(as->v);
+#endif
 
 	kfree(as);
 }
@@ -591,15 +627,20 @@ void as_activate(void)
 	uint32_t ehi, elo;
 	pid_t pid = curproc->pid;
 	char full_inv = 1;
+
+
 	as = proc_getas();
 	if (as == NULL)
 	{
 		return;
 	}
-
+#if OPT_PAGING
 	/* Disable interrupts on this CPU while frobbing the TLB. */
 	spl = splhigh();
 
+	//Cerca nella tlb le pagine da invalidare
+	//Se tutte le pagine sono state invalidate ( full_inv è ancora a 1 )
+	//allora incremento la statistica
 	for (i = 0; i < NUM_TLB; i++)
 	{
 		tlb_read(&ehi, &elo, i);
@@ -608,13 +649,17 @@ void as_activate(void)
 			full_inv = 0;
 			continue;
 		}
-		else
-			vmtlb_clean(i); // tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+		else{
+			vmtlb_clean(i); // tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i); 
+		}
 	}
+
 	if (full_inv){
 		vmstats_report_tlb_invalidation_increment();
 	}
+
 	splx(spl);
+#endif
 }
 
 void as_deactivate(void)
@@ -644,10 +689,6 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 )
 {
 	KASSERT(as != NULL);
-
-	/*
-	 * Write this.
-	 */
 
 	size_t npages;
 	size_t memsize_old = memsize;
@@ -688,7 +729,6 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 		return 0;
 	}
 
-	// dobbiamo aggiungere il vnode
 	/*
 	 * Support for more than two regions is not available.
 	 */
@@ -702,7 +742,6 @@ int as_prepare_load(struct addrspace *as)
 	/*
 	 * Write this.
 	 */
-
 	(void)as;
 	return 0;
 }

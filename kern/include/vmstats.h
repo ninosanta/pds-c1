@@ -27,6 +27,8 @@ extern struct tlb_report vmstats_report;
 
 // Inizializza i contatori della struttura dati
 struct tlb_report vmstats_init(void);
+
+//Funzioni per incrementare le statistiche
 void vmstats_report_tlb_fault_increment(void);
 void vmstats_report_tlb_faultFree_increment(void);
 void vmstats_report_tlb_faultReplacement_increment(void);
@@ -37,6 +39,8 @@ void vmstats_report_pf_disk_increment(void);
 void vmstats_report_pf_elf_increment(void);
 void vmstats_report_pf_swapin_increment(void);
 void vmstats_report_pf_swapout_increment(void);
+
+//Stampa le statistiche
 void vmstats_report_print(void); 
 
 #endif
