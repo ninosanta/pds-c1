@@ -54,6 +54,7 @@
 
 // Variabili globali
 tlb_report vmstats_report;
+static struct spinlock vmstat_lock; // Gestione in mutua esclusione
 static unsigned int vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
@@ -361,9 +362,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		as_destroy(proc_getas());
 		thread_exit();
 	case VM_FAULT_READ:
-		// vmstats_report.tlb_fault++;
 	case VM_FAULT_WRITE:
+		spinlock_acquire(&vmstat_lock);
 		vmstats_report.tlb_fault++;
+		spinlock_release(&vmstat_lock);
 		break;
 	default:
 		return EINVAL;
@@ -611,9 +613,11 @@ void as_activate(void)
 		else
 			vmtlb_clean(i); // tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
 	}
-	if (full_inv)
+	if (full_inv){
+		spinlock_acquire(&vmstat_lock);
 		vmstats_report.tlb_invalidation++;
-
+		spinlock_release(&vmstat_lock);
+	}
 	splx(spl);
 }
 

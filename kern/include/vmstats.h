@@ -3,8 +3,11 @@
 
 #include <types.h>
 #include <kern/errno.h>
+#include <spinlock.h>
 
 #define DEBUG_PAGING 1
+
+
 
 typedef struct tlb_report
 {
@@ -20,7 +23,6 @@ typedef struct tlb_report
     unsigned int pf_elf;     // number of page faults that require getting a page from the ELF file
     unsigned int pf_swapin;  // number of page faults that require getting a page from the swap file
     unsigned int pf_swapout; // number of page faults that require writing a page to the swap file
-
 } tlb_report;
 
 extern struct tlb_report vmstats_report;

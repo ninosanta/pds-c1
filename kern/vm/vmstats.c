@@ -2,6 +2,7 @@
 
 #include "vmstats.h"
 
+#include <spinlock.h>
 /**
  * @brief Inizializzazione della struttura dati. Occorre modificare la struttura dati
  *
