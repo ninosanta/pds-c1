@@ -90,14 +90,7 @@ int runprogram(char *progname)
 
 // Non dobbiamo chiudere il file ELF, perchè caricheremo le pagine quando richieste
 #if !OPT_PAGING
-	/* Load the executable. */
-	result = load_elf(v, &entrypoint);
-	if (result)
-	{
-		/* p_addrspace will go away when curproc is destroyed */
-		vfs_close(v);
-		return result;
-	}
+	vfs_close(v); 
 #endif
 
 	/* Define the user stack in the address space */

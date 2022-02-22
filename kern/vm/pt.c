@@ -212,6 +212,7 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
             *paddr= (i*PAGE_SIZE);
+            spinlock_release(&stealmem_lock); 
             return 1;
          }
         i++;

@@ -165,30 +165,7 @@ shutdown(void)
 
 	/* Scrivere qui le statistiche */
 #if OPT_PAGING
-	kprintf("\nPrint statistics of projects\n\n");
-	kprintf("tlb fault: %d\n"
-		"tlb fault with free space: %d\n"
-		"tlb fault with replace: %d\n"
-		"tlb fault with invalidation: %d\n"
-		"tlb fault with reload: %d\n"
-		"page fault with zero: %d\n"
-		"page table with disk: %d\n"
-		"page table with elf: %d\n"
-		"page table with swapin: %d\n"
-		"page table with swapout: %d\n"
-		
-		"\n\n", vmstats_report.tlb_fault, 
-		vmstats_report.tlb_faultFree, 
-		vmstats_report.tlb_faultReplacement,
-		vmstats_report.tlb_invalidation,
-		vmstats_report.tlb_reload,
-		vmstats_report.pf_zero,
-		vmstats_report.pf_disk,
-		vmstats_report.pf_elf,
-		vmstats_report.pf_swapin,
-		vmstats_report.pf_swapout
-		);
-
+	vmstats_report_print();
 #endif
 
 	splhigh();

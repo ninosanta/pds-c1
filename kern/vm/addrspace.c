@@ -53,8 +53,8 @@
 #define DUMBVM_STACKPAGES 18
 
 // Variabili globali
-tlb_report vmstats_report;
-static struct spinlock vmstat_lock; // Gestione in mutua esclusione
+//tlb_report vmstats_report;
+//static struct spinlock vmstat_lock; // Gestione in mutua esclusione
 static unsigned int vm_activated = 0;
 
 /* Initialization function of the Virtual Memory System  */
@@ -171,7 +171,7 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 				*paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
-		vmstats_report.pf_zero++;
+		vmstats_report_pf_zero_increment();
 		as_zero_region(*paddr, 1);
 
 		/* Con il precedente algoritmo di rimpiazzamento si creava un disealineamento */
@@ -198,8 +198,8 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 									to_read,
 									(faultaddress == vbase) ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase);
 
-		vmstats_report.pf_disk++;
-		vmstats_report.pf_elf++;
+		vmstats_report_pf_disk_increment();
+		vmstats_report_pf_elf_increment();
 
 		flags = 0x01; // Read-only
 		if (ix != -1)
@@ -250,7 +250,7 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 			}
 		}
 		//-------------------------------------------
-		vmstats_report.pf_zero++;
+		vmstats_report_pf_zero_increment();
 
 		as_zero_region(*paddr, 1);
 
@@ -274,8 +274,8 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 									to_read,
 									faultaddress == vbase ? as->data_offset : (as->data_offset & PAGE_FRAME) + faultaddress - vbase);
 
-		vmstats_report.pf_disk++;
-		vmstats_report.pf_elf++;
+		vmstats_report_pf_disk_increment();
+		vmstats_report_pf_disk_increment();
 
 		if (ix != -1)
 			flags |= ix << 2;
@@ -328,7 +328,7 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 
 		as_zero_region(*paddr, 1);
 
-		vmstats_report.pf_disk++;
+		vmstats_report_pf_disk_increment();
 
 		if (ix != -1)
 			flags |= ix << 2;
@@ -363,9 +363,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		thread_exit();
 	case VM_FAULT_READ:
 	case VM_FAULT_WRITE:
-		spinlock_acquire(&vmstat_lock);
-		vmstats_report.tlb_fault++;
-		spinlock_release(&vmstat_lock);
+		vmstats_report_tlb_fault_increment();
 		break;
 	default:
 		return EINVAL;
@@ -421,7 +419,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	{
 		//Se la pagina è stata trovata in memoria
 		paddr = p_temp;
-		vmstats_report.tlb_reload++;
+		vmstats_report_tlb_reload_increment();
 	}
 
 	else if (swapfile_swapin(faultaddress, &p_temp, pid, as))
@@ -429,7 +427,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		//se la pagina è stata trovato nello swap file ed è stato fatto lo swap
 		paddr = p_temp;
 		flags = pt_getFlagsByIndex(paddr >> 12);
-		vmstats_report.pf_disk++;
+		vmstats_report_pf_disk_increment();
 	}
 	else
 	{
@@ -614,9 +612,7 @@ void as_activate(void)
 			vmtlb_clean(i); // tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
 	}
 	if (full_inv){
-		spinlock_acquire(&vmstat_lock);
-		vmstats_report.tlb_invalidation++;
-		spinlock_release(&vmstat_lock);
+		vmstats_report_tlb_invalidation_increment();
 	}
 	splx(spl);
 }

@@ -44,7 +44,7 @@ unsigned int sw_length;
 struct vnode *swapstore;
 int fd;
 
-tlb_report vmstats_report;
+//tlb_report vmstats_report;
 
 static const char swapfilename[] = "emu0:SWAPFILE";
 
@@ -82,8 +82,8 @@ int swapfile_init(long length)
     }
     spinlock_init(&swapfile_lock);
 
-    vmstats_report.pf_swapin = 0;
-    vmstats_report.pf_swapout = 0;
+    //vmstats_report.pf_swapin = 0;
+    //vmstats_report.pf_swapout = 0;
 
     return SWAPMAP_INIT_SUCCESS;
 }
@@ -126,7 +126,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             }
             // clean the page just got by allocation (or previously swapped)
             as_zero_region(*paddr, 1); // Inizilizza a 0 la pagina
-            vmstats_report.pf_zero++;
+            vmstats_report_pf_zero_increment();
 
             // perform the I/O
             uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i * PAGE_SIZE, UIO_READ);
@@ -145,7 +145,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             // pid equals to -1 means that the referenced block in the swapfile can be now reused
             sw[i].pid = -1;
             // add the recently swapped-in page in the IPT
-            vmstats_report.pf_swapin++; // Incremento numero di swapin effettuate
+            vmstats_report_pf_swapin_increment(); // Incremento numero di swapin effettuate
 
             pt_add_entry(vaddr, *paddr, pid, sw[*paddr / PAGE_SIZE].flags);
             return SWAPMAP_SUCCESS;
@@ -206,7 +206,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     vmtlb_clean(flags >> 2); // 0x[ 000000 ] [ 0 ] [ 0 ]
 
     pt_remove_entry(paddr / PAGE_SIZE);
-    vmstats_report.pf_swapout++;
+    vmstats_report_pf_swapout_increment();
     return 1;
 
     (void)vaddr;
