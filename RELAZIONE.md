@@ -28,15 +28,19 @@ Rispetto al vecchio `runprogram.c` la differenza sostanziale è che qui non chiu
 
 Le funzione `load_elf()` in precedenza si occupava del caricamento dell'intero file in memoria ma, seguendo la politica della paginazione su richiesta, non occorre più sia così.
 
-Inoltre, non è previsto l'utilizzo delle funzione `load_segment()` e tutto il necessario sarà fatto nella `load_elf()` che, come già detto, ritornerà l'entrypoint del processo che verrà utilizzato per avviare il processo. Qui, inoltre, verrà scandito l'header dell'eseguibile e verranno definite le regioni dell'addess space tramite la funzione `as_define_region()` preparandole tramite la funzione `as_prepare_load()` (definite in [addrspace.c](#addrspace.c)). 
+Inoltre, non è previsto l'utilizzo delle funzione `load_segment()` e tutto il necessario sarà fatto nella `load_elf()` che, come già detto, ritornerà l'entrypoint del processo che verrà utilizzato per avviare il processo. Qui, inoltre, verrà scandito l'header dell'eseguibile e verranno definite le regioni dell'addess space tramite la funzione `as_define_region()` preparandole tramite la funzione `as_prepare_load()` (definite in [addrspace.c](#addrspacec)). 
 
 ## Flusso del caricamento di una pagina dopo un TLB fault
 
-TODO
+In caso di TLB miss, viene generato un Page Fault i.e., un'eccezione di indirizzo che indica la mancanza della pagina richiesta nella TLB. E questa eccezione viene gestita attraverso la funzione `vm_fault()` (definita in [addrspace.c](#addrspacec)).
+In particolare, ogni volta che tale funzione viene chiamata, essa verificherà che la pagina cercata si trovi nella Page Table tramite la funzione `pt_get_paddr()`. Se sì, allora essa fornirà l'indirizzo fisico. Altrimenti, verrà controllato se la pagina è presente nello *swapfile* tramite la funzione `swapfile_swapin()` (definita in [swapfile.c](#swapfilec)) che provvederà a fare lo swap-in di tale pagina e a fornirne l'indirizzo fisico. In fine, se non dovesse trovarsi nemmeno dentro lo swapfile, la pagina dovrà essere caricata dal disco e avrà inizio il processo di gestione del *Page Replacement* utilizzando le funzioni `vm_fault_page_replacement_[code] [data] [stack]()` (definite in [addrspace.c](#addrspacec)) per i relativi segmenti di codice, dato e stack.
+Per concludere, la entry verrà inserita nella TLB tramite la funzione `vmtlb_write()`(definita in [vm_tlb.c](#vm_tlbc)).
 
 ## Dettagli implementativi
 
 ### addrspace.c
+TODO
+`vm_fault()` già discussa [in precedenza](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault).
 
 ### copyinout.c
 
