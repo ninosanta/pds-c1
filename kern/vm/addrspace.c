@@ -87,15 +87,16 @@ void vm_bootstrap(void)
 
 	vm_activated = 1;
 
+	vmstats_init(); 
 	// Inizializzazione parametri utili per le statistiche
-	vmstats_report.tlb_fault = 0;
-	vmstats_report.tlb_faultFree = 0;
-	vmstats_report.tlb_faultReplacement = 0;
-	vmstats_report.tlb_reload = 0;
-	vmstats_report.tlb_invalidation = 0;
-	vmstats_report.pf_zero = 0;
-	vmstats_report.pf_disk = 0;
-	vmstats_report.pf_elf = 0;
+	//vmstats_report.tlb_fault = 0;
+	//vmstats_report.tlb_faultFree = 0;
+	// vmstats_report.tlb_faultReplacement = 0;
+	// vmstats_report.tlb_reload = 0;
+	// vmstats_report.tlb_invalidation = 0;
+	// vmstats_report.pf_zero = 0;
+	// vmstats_report.pf_disk = 0;
+	// vmstats_report.pf_elf = 0;
 }
 
 static void vm_can_sleep(void)
@@ -164,7 +165,8 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 			if (*paddr == 0x0)
 			{
 				// indexReplacement contiene indice (in ipt) della pagina da sacrificare
-				indexReplacement = pt_replace_entry(pid);
+				indexReplacement =  pt_replace_any_entry();
+				//indexReplacement = pt_replace_entry(pid);
 				// ix contiene indice in tlb della pagina da sacrificare
 
 				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
@@ -242,7 +244,8 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 			*paddr = coremap_getppages(1);
 			if (*paddr == 0)
 			{
-				indexReplacement = pt_replace_entry(pid);
+				indexReplacement =  pt_replace_any_entry();
+				//indexReplacement = pt_replace_entry(pid);
 				ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
 				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 				as->count_proc--;
@@ -304,7 +307,8 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 		as->count_proc++;
 		if (as->count_proc >= MAX_PROC_PT)
 		{
-			indexReplacement = pt_replace_entry(pid);
+			indexReplacement =  pt_replace_any_entry();
+			//indexReplacement = pt_replace_entry(pid);
 			ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
 			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 			as->count_proc--;

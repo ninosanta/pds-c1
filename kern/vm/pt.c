@@ -4,11 +4,12 @@
 #include <kern/errno.h>
 #include <lib.h>
 #include <vm.h>
-#include <pt.h>
+
 #include <spinlock.h>
 #include <clock.h>
 
 #include "coremap.h"
+#include "pt.h"
 
 // Variabili globali
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
@@ -177,6 +178,29 @@ int pt_replace_entry(pid_t pid)
     return replace_index;
 }
 
+int pt_replace_any_entry(void){
+    unsigned int i;
+    unsigned int max = 0;
+    int replace_index = nRamFrames;
+
+    spinlock_acquire(&stealmem_lock);
+
+    for (i = 0; i < nRamFrames; i++)
+    {
+        //Cerca il massimo valore di counter ( strategia FIFO )
+        // e ne salva l'indice
+        if (max < (ipt[i].counter))
+        {
+            max = ipt[i].counter; 
+            replace_index = i;
+        }
+    }
+
+    spinlock_release(&stealmem_lock);
+
+    return replace_index;
+}
+
 //Funzione che, dato il pid del processo e il virtual address della pagina, 
 //restituisce l'indirizzo fisico tramite riferimento 
 //Restituisce 0 se la pagina non si trova in memoria, 1 in caso di successo
@@ -205,7 +229,7 @@ unsigned int pt_get_paddr(vaddr_t vaddr, pid_t pid, paddr_t *paddr)
     else
     {
         //DA CONTROLLARE!!! In questo modo ricalcola l'indirizzo con i+1
-        *paddr = i * PAGE_SIZE;
+        //*paddr = i * PAGE_SIZE;
         return 1;
     }
 
