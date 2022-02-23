@@ -149,6 +149,7 @@ void as_zero_region(paddr_t paddr, unsigned npages);
  
 */
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
+int load_page_from_elf(struct vnode *v, paddr_t dest, size_t len, off_t offset); 
 
 
 

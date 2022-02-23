@@ -1,5 +1,17 @@
+/**
+ * @file coremap.h
+ * @author your name (you@domain.com)
+ * @brief 
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #ifndef _COREMAP_H_
 #define _COREMAP_H_
+
 
 #define COREMAP_INIT_SUCCESS 0
 
@@ -9,13 +21,3 @@ paddr_t coremap_getppages(unsigned long npages);
 int coremap_freepages(paddr_t addr);
 
 #endif
-
-
-// Da valutare
-//Deve trovare un segmento libero 
-//void coremap_find_free (void); 
-
-//Deve trovare N segmenti liberi contigui
-//void coremap_find_nfree(void/*int num_seg*/); 
-
-//i tipi di ritorno e i parametri sono da cambiare come serve

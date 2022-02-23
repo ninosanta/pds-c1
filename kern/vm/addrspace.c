@@ -53,11 +53,19 @@
 #define DUMBVM_STACKPAGES 18
 
 // Variabili globali
-//tlb_report vmstats_report;
-//static struct spinlock vmstat_lock; // Gestione in mutua esclusione
 static unsigned int vm_activated = 0;
 
-/* Initialization function of the Virtual Memory System  */
+
+/************************************************************
+ *                                                          *
+ * Implementazione delle funzioni                           *
+ *                                                          *
+ ************************************************************/
+
+/**
+ * @brief Initialization function of the Virtual Memory System 
+ * 
+ */
 void vm_bootstrap(void)
 {
 	// Inizializzazione della CoreMap
@@ -90,6 +98,10 @@ void vm_bootstrap(void)
 	vmstats_init(); 
 }
 
+/**
+ * @brief 
+ * 
+ */
 static void vm_can_sleep(void)
 {
 	if (CURCPU_EXISTS())
@@ -102,37 +114,29 @@ static void vm_can_sleep(void)
 	}
 }
 
-
-//Dovremmo spostarla in loadelf.c?
-static int load_page_from_elf(struct vnode *v, paddr_t dest, size_t len, off_t offset)
-{
-	struct iovec iov;
-	struct uio ku;
-	int res;
-
-	uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(dest), len, offset, UIO_READ);
-	res = VOP_READ(v, &ku);
-	if (res)
-	{
-		return res;
-	}
-
-	if (ku.uio_resid != 0)
-	{
-		return ENOEXEC;
-	}
-
-	return res;
-}
-
-//Funzione che riempie di zeri una regione di n pagine
-//a partire dall'indirizzo paddr
+/**
+ * @brief Funzione che riempie di zeri una regione di n pagine a partire dall'indirizzo paddr
+ * 
+ * @param paddr 
+ * @param npages 
+ */
 void as_zero_region(paddr_t paddr, unsigned npages)
 {
 	bzero((void *)PADDR_TO_KVADDR(paddr), npages * PAGE_SIZE);
 }
 
-//Funzione che gestisce il vm_fault in caso di pagine di codice
+
+/**
+ * @brief Funzione che gestisce il vm_fault in caso di pagine di codice 
+ * 
+ * @param as 
+ * @param faultaddress 
+ * @param vbase 
+ * @param vtop 
+ * @param pid 
+ * @param paddr 
+ * @return int 
+ */
 static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
@@ -239,7 +243,17 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 		return EFAULT;
 }
 
-//Funzione che gestisce il vm_fault in caso di pagine di dati
+/**
+ * @brief Funzione che gestisce il vm_faulr in caso di pagine di dati
+ * 
+ * @param as 
+ * @param faultaddress 
+ * @param vbase 
+ * @param vtop 
+ * @param pid 
+ * @param paddr 
+ * @return int 
+ */
 static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultaddress, vaddr_t vbase, vaddr_t vtop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
@@ -314,7 +328,17 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 		return EFAULT;
 }
 
-//Funzione che gestisce il vm_fault in caso di pagine che risiedono nellos stack
+/**
+ * @brief Funzione che gestisce il vm_fault in caso di pagine che risiedono nello stack
+ * 
+ * @param as 
+ * @param faultaddress 
+ * @param stackbase 
+ * @param stacktop 
+ * @param pid 
+ * @param paddr 
+ * @return int 
+ */
 static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultaddress, vaddr_t stackbase, vaddr_t stacktop, pid_t pid, paddr_t *paddr)
 {
 	int indexReplacement,
@@ -366,7 +390,13 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 		return EFAULT;
 }
 
-/* Fault handling function called by trap code */
+/**
+ * @brief Fault handling function called by trap code
+ * 
+ * @param faulttype 
+ * @param faultaddress 
+ * @return int 
+ */
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
 	vaddr_t vbase1, vtop1, vbase2, vtop2, stackbase, stacktop;
@@ -554,6 +584,11 @@ void free_kpages(vaddr_t addr)
  * used. The cheesy hack versions in dumbvm.c are used instead.
  */
 
+/**
+ * @brief Alloca l'addresspace e inizializza le sue componenti
+ * 
+ * @return struct addrspace* 
+ */
 struct addrspace *
 as_create(void)
 {
@@ -579,6 +614,14 @@ as_create(void)
 	return as;
 }
 
+/**
+ * @brief Copia un addresspace in un nuovo addresspace
+ *        Non necessario per lo scopo del progetto
+ * 
+ * @param old 
+ * @param ret 
+ * @return int 
+ */
 int as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *newas;
@@ -606,6 +649,11 @@ int as_copy(struct addrspace *old, struct addrspace **ret)
 	return 0;
 }
 
+/**
+ * @brief Rimuove tutte le entries della page table del processo che si sta distruggendo
+ *        Chiude l'ELF file e finalmente libera lo spazio dell'addresspace
+ * @param as 
+ */
 void as_destroy(struct addrspace *as)
 {
 	vm_can_sleep();
@@ -620,6 +668,10 @@ void as_destroy(struct addrspace *as)
 	kfree(as);
 }
 
+/**
+ * @brief Attiva l'addresspace del processo corrente, invalidando le entry della talb di altri processi
+ * 
+ */
 void as_activate(void)
 {
 	int i, spl;
@@ -662,6 +714,7 @@ void as_activate(void)
 #endif
 }
 
+
 void as_deactivate(void)
 {
 	/*
@@ -680,6 +733,11 @@ void as_deactivate(void)
  * write, or execute permission should be set on the segment. At the
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
+ */
+
+/**
+ * @brief Definisce una regione dell'addresspace settando l'indirizzo base, il numero di pagine, la dimensione e il vnode
+ * 
  */
 int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct vnode *v,
 					 int readable, int writeable, int executable,
@@ -735,6 +793,9 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize, struct
 	kprintf("dumbvm: Warning: too many regions\n");
 	return EFAULT;
 }
+
+
+
 
 int as_prepare_load(struct addrspace *as)
 {

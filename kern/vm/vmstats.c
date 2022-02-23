@@ -1,10 +1,17 @@
-// vmstats.c: code for tracking stats
+/**
+ * @file vmstats.c
+ * @author your name (you@domain.com)
+ * @brief code for tracking stats
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
 
 #include "vmstats.h"
-
 #include <spinlock.h>
 #include <lib.h>
-
 
 static struct spinlock stats_lock = SPINLOCK_INITIALIZER; 
 
@@ -32,6 +39,11 @@ struct tlb_report vmstats_init(void)
 
     return report;
 }
+
+/**
+ * @brief Funzioni per l'incremento dei singoli valori 
+ * 
+ */
 
 void vmstats_report_tlb_fault_increment(void){
     spinlock_acquire( &stats_lock); 
@@ -83,6 +95,11 @@ void vmstats_report_pf_swapout_increment(void){
     vmstats_report.pf_swapout++; 
     spinlock_release(&stats_lock); 
 }
+
+/**
+ * @brief Stampa le statistiche
+ * 
+ */
 void vmstats_report_print(void){
     kprintf("\nStatistics of projects\n\n");
 	kprintf("tlb fault: %d\n"

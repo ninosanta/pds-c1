@@ -1,3 +1,14 @@
+/**
+ * @file swapfile.h
+ * @author your name (you@domain.com)
+ * @brief code for managing and manipulating the swapfile
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #ifndef _SWAPFILE_H_
 #define _SWAPFILE_H_
 

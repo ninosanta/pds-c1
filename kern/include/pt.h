@@ -1,3 +1,14 @@
+/**
+ * @file pt.h
+ * @author your name (you@domain.com)
+ * @brief code for managing the inverted page table
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #include <types.h>
 #include <lib.h>
 
@@ -37,7 +48,6 @@ pid_t pt_getPidByIndex(int index);
 
 void pt_setFlagsAtIndex(int index, unsigned char val);
 
-//struct ipt_t pt_get_entry (void); //funzione usata per verificare la presenza d>
 
 
 

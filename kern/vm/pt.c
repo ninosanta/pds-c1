@@ -1,10 +1,19 @@
-// pt.c: page tables and page table entry manipulation go here
+/**
+ * @file pt.c
+ * @author your name (you@domain.com)
+ * @brief code for managing the page table (INVERTED PAGE TABLE)
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
 
+//Librerie
 #include <types.h>
 #include <kern/errno.h>
 #include <lib.h>
 #include <vm.h>
-
 #include <spinlock.h>
 #include <clock.h>
 
@@ -13,10 +22,10 @@
 
 // Variabili globali
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
-
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
 static struct ipt_t *ipt = NULL;
 
+//Tentativo di creare una inverted page table con tempi di ricerca minori
 #ifdef FIFOSCHEDULING
 
 struct ipt_fifo_node
@@ -82,7 +91,11 @@ static int fifo_node_Remove()
 }
 #endif
 
-// Inizializzazione della Inverted Page Table
+/**
+ * @brief Inizializzazione della Invreted Page Table
+ * 
+ * @return int 
+ */
 int pt_init(void)
 {
     unsigned int i;
@@ -113,8 +126,10 @@ int pt_init(void)
     return 0;
 }
 
-// Funzione che aggiorna il valore che tiene conto delle pagine
-// più vecchie per sostituzione FIFO
+/**
+ * @brief Funzione che aggiorna il valore che tiene conto delle pagine
+ *         più vecchie per sostituzione FIFO
+ */
 static void upgrade_counter(void)
 {
     unsigned int i;
@@ -128,7 +143,15 @@ static void upgrade_counter(void)
             ipt[i].counter++;
 }
 
-// Funzione che aggiunge aggiunge una entry nella pagetable all'indirizzo paddr
+/**
+ * @brief Funzione che aggiunge aggiunge una entry nella pagetable all'indirizzo paddr
+ * 
+ * @param vaddr 
+ * @param paddr 
+ * @param pid 
+ * @param flag 
+ * @return int 
+ */
 int pt_add_entry(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag)
 {
     unsigned int index = ((unsigned int)paddr) / PAGE_SIZE;
@@ -154,6 +177,12 @@ int pt_add_entry(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag)
 //una pagina del processo stesso da sostituire 
 //all'interno della page table
 //Restituisce l'indice della cella da sostituire
+/**
+ * @brief Funzione che, dato il pid del processo, cerca una pagina del processo stesso da sostituire all'interno della page table
+ *        Restituisce l'indice della cella da sostituire
+ * @param pid 
+ * @return int 
+ */
 int pt_replace_entry(pid_t pid)
 {
     unsigned int i;
@@ -178,6 +207,11 @@ int pt_replace_entry(pid_t pid)
     return replace_index;
 }
 
+/**
+ * @brief Funzione che cerca la pagina in memoria piiù vecchia in assoluto, e ne restituisce l'indice
+ * 
+ * @return int 
+ */
 int pt_replace_any_entry(void){
     unsigned int i;
     unsigned int max = 0;
@@ -201,9 +235,16 @@ int pt_replace_any_entry(void){
     return replace_index;
 }
 
-//Funzione che, dato il pid del processo e il virtual address della pagina, 
-//restituisce l'indirizzo fisico tramite riferimento 
-//Restituisce 0 se la pagina non si trova in memoria, 1 in caso di successo
+/**
+ * @brief Funzione che, dato il pid del processo e il virtual address della pagina, 
+ *        restituisce l'indirizzo fisico tramite riferimento 
+ *        Restituisce 0 se la pagina non si trova in memoria, 1 in caso di successo
+ * 
+ * @param vaddr 
+ * @param pid 
+ * @param paddr 
+ * @return unsigned int 
+ */
 unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     unsigned int i = 0;
 
@@ -225,6 +266,11 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     return 0;  // non presente in memoria
 } 
 
+/**
+ * @brief Invalida la entry corrispondente all'indirizzo passato come parametro
+ * 
+ * @param replace_index 
+ */
 void pt_remove_entry(int replace_index)
 {
     spinlock_acquire(&stealmem_lock);
@@ -236,6 +282,11 @@ void pt_remove_entry(int replace_index)
     spinlock_release(&stealmem_lock);
 }
 
+/**
+ * @brief Invalida tutte le entry relative al pid passato come parametro
+ * 
+ * @param pid 
+ */
 void pt_remove_entries(pid_t pid)
 {
     unsigned int i;
@@ -259,6 +310,10 @@ void pt_remove_entries(pid_t pid)
     spinlock_release(&stealmem_lock);
 }
 
+/**
+ * @brief Distrugge la page table
+ * 
+ */
 void pt_destroy(void)
 {
     unsigned int i = 0;
@@ -271,21 +326,45 @@ void pt_destroy(void)
     spinlock_release(&stealmem_lock);
 }
 
+/**
+ * @brief Ottiene i flag, dato l'indice del frame
+ * 
+ * @param index 
+ * @return unsigned char 
+ */
 unsigned char pt_getFlagsByIndex(int index)
 {
     return ipt[index].flags;
 }
 
+/**
+ * @brief Ottiene il Virtual address del frame passato
+ * 
+ * @param index 
+ * @return vaddr_t 
+ */
 vaddr_t pt_getVaddrByIndex(int index)
 {
     return ipt[index].vaddr;
 }
 
+/**
+ * @brief Ottiene il pid della pagina salvata all'indice passato come parametro
+ * 
+ * @param index 
+ * @return pid_t 
+ */
 pid_t pt_getPidByIndex(int index)
 {
     return ipt[index].pid;
 }
 
+/**
+ * @brief Setta i flag di una entry della page table
+ * 
+ * @param index 
+ * @param val 
+ */
 void pt_setFlagsAtIndex(int index, unsigned char val)
 {
     ipt[index].flags |= val;

@@ -1,15 +1,13 @@
 /**
  * @file swapfile.c
  * @author your name (you@domain.com)
- * @brief
+ * @brief code for managing and manipulating the swapfile
  * @version 0.1
  * @date 2021-12-15
  *
  * @copyright Copyright (c) 2021
  *
  */
-
-// indexR = pagetable_replacement(pid); da sistemare
 
 // Librerie
 #include <types.h>
@@ -35,17 +33,12 @@
 #include "coremap.h"
 #include "pt.h"
 
-// Define
-
 // Variabili globali
 static swapfile *sw;
 static struct spinlock swapfile_lock;
 unsigned int sw_length;
 struct vnode *swapstore;
 int fd;
-
-//tlb_report vmstats_report;
-
 static const char swapfilename[] = "emu0:SWAPFILE";
 
 /************************************************************
@@ -53,6 +46,13 @@ static const char swapfilename[] = "emu0:SWAPFILE";
  * Implementazione delle funzioni                           *
  *                                                          *
  ************************************************************/
+
+/**
+ * @brief Iizializzazione dello swapfile
+ * 
+ * @param length 
+ * @return int 
+ */
 int swapfile_init(long length)
 {
     int i;
@@ -88,6 +88,16 @@ int swapfile_init(long length)
     return SWAPMAP_INIT_SUCCESS;
 }
 
+/**
+ * @brief Cerca se la paggina passata come parametro si trova nel file, in modo da ottenere il suo indirizzo nel backing store
+ *        Prende una pagina del backing store e fa swap con una nella page table
+ * 
+ * @param vaddr 
+ * @param paddr 
+ * @param pid 
+ * @param as 
+ * @return int 
+ */
 int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *as)
 {
     unsigned int i;
@@ -118,7 +128,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
                 *paddr = coremap_getppages(1);
                 if (*paddr == 0)
                 { // Non ci sono pagine libere nel vettore corempa_allocSize
-                    indexR = pt_replace_entry(pid);
+                    indexR = pt_replace_any_entry();
                     swapfile_swapout(pt_getVaddrByIndex(indexR), indexR * PAGE_SIZE, pid, pt_getFlagsByIndex(indexR));
                     as->count_proc--;
                     *paddr = indexR * PAGE_SIZE;
@@ -151,15 +161,18 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             return SWAPMAP_SUCCESS;
         }
     }
-
-    (void)vaddr;
-    (void)paddr;
-    (void)pid;
-    (void)as;
-
     return SWAPMAP_REJECT;
 }
 
+/**
+ * @brief Prende una pagine e la rimette nel backing store, salvando il suo indirizzo nel file di swap
+ * 
+ * @param vaddr 
+ * @param paddr 
+ * @param pid 
+ * @param flags 
+ * @return int 
+ */
 int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flags)
 {
 
@@ -208,24 +221,4 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     pt_remove_entry(paddr / PAGE_SIZE);
     vmstats_report_pf_swapout_increment();
     return 1;
-
-    (void)vaddr;
-    (void)paddr;
-    (void)pid;
-    (void)flags;
-    return 0;
 }
-
-// swapfile.c: code for managing and manipulating the swapfile
-
-// vedi CHAPTER 9 --> pagina 55
-
-// A process can be swapped temporaly out of memory
-// to a backing store an then brought back into memory
-// for continued execution
-
-// swapping is normally disabled, starts whan a threshold of allocated memory is reached
-// disabled when you're back under the threshold
-
-// nello swap file ci devono essere scritte le pagine che devono essere scritte su disco
-// la politica di rimpiazzamnto è a nostra scelta

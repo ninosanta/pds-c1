@@ -58,6 +58,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <elf.h>
+#include <vm.h>
 
 #if !OPT_PAGING
 /*
@@ -332,4 +333,34 @@ int load_elf(struct vnode *v, vaddr_t *entrypoint)
 	*entrypoint = eh.e_entry;
 
 	return 0;
+}
+
+/**
+ * @brief Carica un'unica pagina dall'elf file
+ * 
+ * @param v 
+ * @param dest 
+ * @param len 
+ * @param offset 
+ * @return int 
+ */
+int load_page_from_elf(struct vnode *v, paddr_t dest, size_t len, off_t offset)
+{
+	struct iovec iov;
+	struct uio ku;
+	int res;
+
+	uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(dest), len, offset, UIO_READ);
+	res = VOP_READ(v, &ku);
+	if (res)
+	{
+		return res;
+	}
+
+	if (ku.uio_resid != 0)
+	{
+		return ENOEXEC;
+	}
+
+	return res;
 }
