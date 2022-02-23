@@ -36,19 +36,22 @@ In caso di TLB miss, viene generato un Page Fault i.e., un'eccezione di indirizz
 In particolare, ogni volta che tale funzione viene chiamata, essa verificherà che la pagina cercata si trovi nella Page Table tramite la funzione `pt_get_paddr()`. Se sì, allora essa fornirà l'indirizzo fisico. Altrimenti, verrà controllato se la pagina è presente nello *swapfile* tramite la funzione `swapfile_swapin()` (definita in [swapfile.c](#swapfilec)) che provvederà a fare lo swap-in di tale pagina e a fornirne l'indirizzo fisico. In fine, se non dovesse trovarsi nemmeno dentro lo swapfile, la pagina dovrà essere caricata dal disco e avrà inizio il processo di gestione del *Page Replacement* utilizzando le funzioni `vm_fault_page_replacement_[code] [data] [stack]()` (definite in [addrspace.c](#addrspacec)) per i relativi segmenti di codice, dato e stack.
 Per concludere, la entry verrà inserita nella TLB tramite la funzione `vmtlb_write()`(definita in [vm_tlb.c](#vm_tlbc)).
 
-## Dettagli implementativi
+## Altri dettagli implementativi
+
+### coremap.c
+
+Qui è presente ciò che occorre per tenere traccia dei frame fisici e quindi gestire la memoria del kernel attraverso una *coremap*. Questa viene inizializzata attraverso la funzione `coremap_init()`. Essa, in particolare, alloca e inizializza due vettori di dimensione `nRamFrames` i.e., la dimensione che al boot viene assegnata alla RAM, e tali vettori saranno `freeRamFrames[]` e `allocSize[]` i quali, rispettivamente, rappresenteranno il vettore le cui entry rappresenteranno le locazioni di memoria occupate (entry a 1) e libere (entry a 0) e l'altro sarà invece il vettore che terrà traccia della dimensione allocata alle varie pagine.
+
+Proseguendo, troviamo una funzione di supporto, la  `getfreeppages()`. Essa viene utilizzata per cercare un insieme lungo `npages` di pagine consecutive libere operando in mutua esclusione sul vettore `freeRamFrames[]` e, in caso di successo, ritornerà l'indirizzo fisico del primo frame libero. 
+Poi troviamo la funzione `coremap_getppages()` che in realtà è un wrapper alla `getfreeppages()`.
+
+In fine, troviamo la funzione `coremap_freepages()`. Essa, passatole come parametro l'indirizzo fisico `addr`, libererà le pagine precedentemente allocate e lo farà a paratire da quell'indirizzo, recuperando il numero di pagine da liberare dal vettore `allocSize[]`.
 
 ### addrspace.c
 TODO
 `vm_fault()` già discussa [in precedenza](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault).
 
-### copyinout.c
-
-### coremap.c
-
 ### pt.c
-
-### segments.c
 
 ### swapfile.c
 
