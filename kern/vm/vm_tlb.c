@@ -9,7 +9,6 @@
  * 
  */
 
-// vm_tlb.c: 
 
 //Librerie
 #include "vm_tlb.h"
