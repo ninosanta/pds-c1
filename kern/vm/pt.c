@@ -200,12 +200,8 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
         i++;
     }
     spinlock_release( &stealmem_lock ); 
-
     
-    if(i == nRamFrames)
-        return 0; // La pagina richiesta non è presente nella page table
-    
-    return 0;  // La pagina richiesta non è presente nella nella page table
+    return 0;  // La pagina richiesta non è presente nella page table
 } 
 
 /**
@@ -216,11 +212,10 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
 void pt_remove_entry(int replace_index)
 {
     spinlock_acquire(&stealmem_lock);
-
     ipt[replace_index].pid = -1;
     ipt[replace_index].flags = 0;
     ipt[replace_index].vaddr = 0;
-
+    ipt[replace_index].invalid = 1;
     spinlock_release(&stealmem_lock);
 }
 
@@ -243,10 +238,11 @@ void pt_remove_entries(pid_t pid)
     {
         if (ipt[i].pid == pid)
         {
-            ipt[i].flags = 0;
             ipt[i].pid = -1;
-            ipt[i].counter = 0;
-
+            ipt[i].flags = 0;
+            ipt[i].vaddr = 0;
+            ipt[i].invalid = 1;
+            
             coremap_freepages(i * PAGE_SIZE);
         }
     }
