@@ -86,8 +86,46 @@ Altre funzioni degne di nota sono:
 * La `as_define_region()`: definisce una regione dell'addresspace settando l'indirizzo base, il numero di pagine, la dimensione e il vnode.
  
 ### pt.c
+In questo file è presente il codice necessario per gestire l’Inverted Page Table, che tiene traccia per ogni frame fisico della RAM, della pagina virtuale in esso allocata. Tramite la `pt_init()` verranno inizializzate le strutture di supporto. La prima operazione è assegnare la dimensione alla variabile `nRamFrames`, dato che la dimensione della RAM viene letta solo all’accensione del sistema. In seguito viene allocato dinamicamente e inizializzato il vettore `ipt[]` con una dimensione di `nRamFrames`. 
+
+```C
+struct ipt_t{
+        pid_t pid;
+        vaddr_t vaddr;
+        bool invalid;
+        unsigned char flags;
+        unsigned int counter;
+};
+```
+
+Le funzioni per la sua gestione sono: 
++ `pt_add_entry()` che viene utilizzata dalla `vm_fault_page_replacement_[code][data][stack]()` dopo aver trovato un frame libero o da rimpiazzare per caricare una pagina dal backing store. 
++ `pt_replace_entry()` e `pt_replace_any_entry()` sono chiamate dalla `vm_fault_page_replacement_[code][data][stack]()` rispettivamente quando il processo ha già un massimo di pagine ad esso allocato e quando non sono presenti frame liberi in memoria. Nel primo caso la pagina da rimpiazzare dovrà appartenere al processo stesso. La strategia di rimpiazzamento è First In First Out. Infatti ad ogni entry della page table viene assegnato un valore `ipt[i] -> counter`, che viene usato per tenere traccia delle pagine da più tempo in RAM. La pagine con valore maggiore viene rimpiazzata. 
+Ogni volta che viene aggiunta una pagina con `pt_add_entry()` si fa una chiamata a `upgrade_counter()`, che incrementa questo valore in ogni entry valida della tabella, mentre la nuova pagina viene inserita con valore 0.
++ `pt get_paddr()` viene usata dalla `vm_fault()` per sapere se, dato il pid e il virtual address, la pagina richiesta si trova in memoria e, se c’è, ne restituisce l’indirizzo fisico. 
++ `pt_remove_entry()` e `pt_remove_entries()` servono per invalidare una o più entry della tabella. La seconda in particolare, viene chiamata alla chiusura di un processo dalla `as_destroy()` per invalidare tutti i frame appartenenti ad esso, in modo da poterli riutilizzare.
++ `pt_destroy()` libera la page table attraverso la `kfree()`
++ `pt_getFlagsByIndex()` ` pt_getVaddrByIndex()` ` pt_getPidByIndex()` `pt_setFlagsAtIndex()` sono funzioni che vengono utilizzate all’occorrenza per ottenere o settare i valori delle entry
 
 ### swapfile.c
+
+
+In questo file sono state implementate le funzioni per gestire il file di swap, file in cui vengono salvate le informazioni sulle pagine che vengono spostate dalla RAM al disco in caso di page replacement. In questo modo sono più velocemente accessibili se nuovamente richieste.
+
+```C
+typedef struct  {
+    vaddr_t v_pages; 
+    pid_t pid; 
+    unsigned char flags;
+}swapfile;
+```
+Lo scheletro della struttura utilizzata è quello soprariportato. Il vettore `swapfile[]` viene allocato e inizializzato nel momento in cui viene fatto il bootstrap della memoria virtuale con una chiamata a `swapfile_init()`. La dimensione è pari a `SWAP_SIZE` definita in `vm.h`. 
+Le operazioni principali per la sua gestione sono `swapfile_swapin()` e `swapfile_swapout()`.
+
+`swapfile_swapin()` viene chiamata da `vm_fault()` in caso di page table miss, cosa che richiede una sostituzione di pagina. Il suo compito è cercare se la pagina richiesta si trova nel file. In caso affermativo deve caricarla effettuando lo swapout di un'altra pagina, trovata chiamando `pt_replace_entry()` e `swapfile_swapout()`. In seguito carica la pagina con `uio_kinit()` ed inseriscela nuova entry in page table con `pt_add_entry()`. 
+
+`swapfile_swapout()` viene chiamata sia dalle funzioni `vm_fault_page_replacement_[code][data][stack]()` che da `swapfile_swapin()`. Le prime in caso la pagina richiesta non si trovi neanche nello swapfile, la seconda nel caso opposto. Il suo compito è cercare un frame libero nello swapfile, riportare la pagina da rimpiazzare in backing store e invalidando l'eventuale entry nella tlb con `vmtlb_clean()`  e quella in pagetable con `pt_remove_entry()`.
+
 
 ### vm_tlb.c
 

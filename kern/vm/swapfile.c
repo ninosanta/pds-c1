@@ -58,12 +58,13 @@ int swapfile_init(long length)
     int i;
     char path[sizeof(swapfilename)];
 
+    //Allocazione del vettore
     sw = (swapfile *)kmalloc(sizeof(swapfile) * length);
     if (sw == NULL)
     {
         return 1;
     }
-
+    //Inizializzazione delle celle
     for (i = 0; i < length; i++)
     {
         sw[i].flags = 0;
@@ -71,8 +72,11 @@ int swapfile_init(long length)
         sw[i].v_pages = 0x0;
     }
 
+    //Assegnata la dimensione del vettore e il path del file
     sw_length = length;
     strcpy(path, swapfilename);
+
+    //Il file viene aperto
     fd = vfs_open(path, O_RDWR | O_CREAT, 0, &swapstore);
     if (fd)
     {
