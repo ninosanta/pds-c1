@@ -163,12 +163,11 @@ In questo file sono presenti le funzioni per l'inizializzazioine, l'incremento e
 
 ## Statistiche
 
-|    Test    | TLB Faults | TLB Faults with Free | TLB Faults with Replace | TLB Invalids | TLB Reloads | Page Faults (zero filled) | Page Faults (disk) | ELF File Read | Swapfile Read | Swapfile Writes |
+|    Test    | TLB Faults | TLB Faults with Free | TLB Faults with Replace | TLB Invalids | TLB Reloads | Page Faults (zero filled) | Page Faults (disk) | Page Faults from ELF | Swapin | Swapout |
 | :--------: | :--------: | :------------------: | :---------------------: | :----------: | :---------: | :-----------------------: | :----------------: | :-----------: | :-----------: | :-------------: |
-|   palin    |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-|    sort    |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-|    huge    |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-|  matmult   |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-|   ctest    |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-|    zero    |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
-| tlbreplace |     x      |          x           |            x            |      x       |      x      |             x             |         x          |       x       |       x       |        x        |
+|   palin    |     5      |          5           |            0            |      6       |      0      |             4             |         7          |       2       |       0       |        0        |
+|    sort    |     2771      |          2771           |            0            |      7       |      0      |             2770             |         3060          |       2       |       2479       |        2740        |
+|    huge    |     3688      |          3688           |            0            |      6       |      0      |             3687             |         4200          |       2       |       3173       |        3657        |
+|  matmult   |     906      |          906           |            0            |      6       |      0      |             905             |         1286          |       2       |       523       |        875        |
+|   ctest    |     127298      |          127298           |            0            |      7       |      0      |             127297             |         127555          |       2       |       127038       |        127267        |
+|    zero    |     4      |          4           |            0            |      7       |      0      |             3             |         5          |       2       |       0       |        0        |
