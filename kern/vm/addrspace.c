@@ -221,8 +221,8 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 		// Incremento il numero di
 		// tlb misses che hanno richiesto che una pagina venisse caricata dal disco
 		// tlb misse che hanno richiesto una lettura dell'ELF file
-		vmstats_report_pf_disk_increment();
-		vmstats_report_pf_elf_increment();
+		//vmstats_report_pf_disk_increment();
+		//vmstats_report_pf_elf_increment();
 
 		// Aggiungo una entry nella page table
 		// Settando il flag a read-only essendo una pagina di codice
@@ -308,8 +308,9 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 									to_read,
 									faultaddress == vbase ? as->data_offset : (as->data_offset & PAGE_FRAME) + faultaddress - vbase);
 
-		vmstats_report_pf_disk_increment();
-		vmstats_report_pf_disk_increment();
+		//vmstats_report_pf_disk_increment();
+		//vmstats_report_pf_elf_increment();
+		//vmstats_report_pf_disk_increment(); MI volete morto :(
 
 		if (ix != -1)
 			flags |= ix << 2;
@@ -370,7 +371,8 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 		}
 		as_zero_region(*paddr, 1);
 
-		vmstats_report_pf_disk_increment();
+		//vmstats_report_pf_disk_increment();
+		//vmstats_report_pf_elf_increment();
 
 		if (ix != -1)
 			flags |= ix << 2;
@@ -595,6 +597,9 @@ as_create(void)
 	as->as_stackpbase = 0;
 	as->count_proc = 0;
 	as->v = NULL;
+
+	vmstats_report_pf_zero_increment();
+
 
 #endif
 

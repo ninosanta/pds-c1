@@ -19,6 +19,7 @@
 
 #include "coremap.h"
 #include "pt.h"
+#include "vmstats.h"
 
 // Variabili globali
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
@@ -137,7 +138,7 @@ int pt_replace_entry(pid_t pid)
             replace_index = i;
         }
     }
-
+ 
     spinlock_release(&stealmem_lock);
 
     return replace_index;
@@ -165,7 +166,7 @@ int pt_replace_any_entry(void){
             replace_index = i;
         }
     }
-
+    vmstats_report_tlb_faultReplacement_increment();
     spinlock_release(&stealmem_lock);
 
     return replace_index;
