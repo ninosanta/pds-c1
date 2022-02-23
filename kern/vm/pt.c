@@ -58,7 +58,6 @@ int pt_init(void)
     {
         ipt[i].pid = -1;
         ipt[i].invalid = 1;
-        ipt[i].readonly = 0;
         ipt[i].flags = 0;
         ipt[i].counter = 0;
     }

@@ -18,7 +18,6 @@ struct ipt_t{
         pid_t pid;
         vaddr_t vaddr;
         bool invalid;
-        bool readonly;
         unsigned char flags;
         unsigned int counter;
 };

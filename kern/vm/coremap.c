@@ -61,7 +61,7 @@ static int allocTableActive = 0;
  *
  * Response: non è possibile trascurare le prime celle del vettore in quanto i vettori sono allocati dinamicamente in base al numero di frame totali.
  *          Tuttavia è possibile simulare un'allocazione della memoria totale, calcolare l'effettivo numero di frame e deallocare per riallocare
- *          (avremo un po meno di quello prefissato in quando il numero di frame sarà minone).
+ *          (avremo un po meno di quello prefissato in quando il numero di frame sarà minore).
  *
  */
 int coremap_init(void)
