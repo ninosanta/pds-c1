@@ -514,9 +514,9 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	KASSERT((paddr & PAGE_FRAME) == paddr);
 
 	/**************************************************************************************************************
-	 | virtual page frame number (20 bit) | pid (6 bit) | pad (6 bit) * EHI                                       |
+	 | EHI | virtual page frame number (20 bit) | pid (6 bit) | pad (6 bit)                                       |
 	 |************************************************************************************************************|
-	 | physical page frame number (20 bit)| no cache bit | dirty bit | valid bit | global bit | pad (8 bit) * ELO |
+	 | ELO | physical page frame number (20 bit)| no cache bit | dirty bit | valid bit | global bit | pad (8 bit) |
 	 **************************************************************************************************************/
 	ehi = faultaddress | pid << 6;
 
