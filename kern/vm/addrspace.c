@@ -352,8 +352,8 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 		as->count_proc++;
 		if (as->count_proc >= MAX_PROC_PT)
 		{
-			indexReplacement =  pt_replace_any_entry();
-			//indexReplacement = pt_replace_entry(pid);
+			
+			indexReplacement = pt_replace_entry(pid);
 			ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
 			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 			as->count_proc--;
@@ -364,7 +364,7 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 			*paddr = coremap_getppages(1);
 			if (*paddr == 0)
 			{
-				indexReplacement = pt_replace_entry(pid);
+				indexReplacement =  pt_replace_any_entry();
 				ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
 				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 				as->count_proc--;
