@@ -161,7 +161,7 @@ void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
   spl = splhigh();
 
   //Aggiunge la entry in tlb
-  tlb_write(ehi, elo, *index);
+  tlb_write(ehi, elo, *index); // Funzione mips
 
   // Inserisce il bit a uno alla posizione index
   tlb_map.map[*index / BYTE_BIT] |= 1 << (*index % BYTE_BIT);
@@ -180,7 +180,7 @@ void vmtlb_clean(int index)
 
   spl = splhigh();
 
-  tlb_write(TLBHI_INVALID(index), TLBLO_INVALID(), index);
+  tlb_write(TLBHI_INVALID(index), TLBLO_INVALID(), index); // Funzione mips
 
   // Imposta il bit della cella da pulire a zero
   tlb_map.map[index / BYTE_BIT] &= ~(1 << (index % BYTE_BIT)); // Si ricerca il blocco i-esimo e si esegue l'operatore & bit a bit
