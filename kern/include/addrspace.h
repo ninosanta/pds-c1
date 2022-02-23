@@ -34,35 +34,26 @@
  * Address space structure and operations.
  */
 
-
 #include <types.h>
-
 #include <elf.h>
-
 #include <current.h>
-//#include "opt-dumbvm.h"
 #include "opt-paging.h"
-//#include "pt.h"
 
 struct vnode;
-
 
 /*
  * Address space - data structure associated with the virtual memory
  * space of a process.
  *
- * You write this.
  */
 
 struct addrspace {
 #if OPT_PAGING
-        vaddr_t as_vbase1;
-        //paddr_t as_pbase1;
-        size_t as_npages1;
-        vaddr_t as_vbase2;
-        //paddr_t as_pbase2;
-        size_t as_npages2;
-        paddr_t as_stackpbase;
+        vaddr_t as_vbase1;  /* base virtual address of code segment */
+        size_t as_npages1;  /* size (in pages) of code segment */
+        vaddr_t as_vbase2;  /* base virtual address of data segment */
+        size_t as_npages2;  /* size (in pages) of data segment */
+        paddr_t as_stackpbase;  /* base physical address of stack */
 
         // Addition data
         off_t code_offset; // code offset within elf file
