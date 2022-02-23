@@ -1,5 +1,17 @@
-// vm_tlb.c: code for manipulating the tlb (including replacement)
+/**
+ * @file vm_tlb.c
+ * @author your name (you@domain.com)
+ * @brief code for manipulating the tlb (including replacement)
+ * @version 0.1
+ * @date 2022-02-23
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
 
+// vm_tlb.c: 
+
+//Librerie
 #include "vm_tlb.h"
 #include <lib.h>
 #include <spl.h>
@@ -8,11 +20,10 @@
 
 #include "vmstats.h"
 
+//Variabili Globali
 static const unsigned char BYTE_BIT = 8;
 static struct spinlock tlb_lock = SPINLOCK_INITIALIZER;
 static struct tlb_map_t tlb_map;
-
-tlb_report vmstats_report;
 
 typedef struct tlb_map_t
 {
@@ -20,7 +31,6 @@ typedef struct tlb_map_t
   unsigned char size; // Dimensione del vettore map
 } tlb_map_t;
 
-static int tlbmap_init(struct tlb_map_t *tlbmap);
 
 /**
  * @brief Costruttore della struttura dati strcut tlb_map
@@ -56,6 +66,12 @@ static int tlb_get_rr_victim(void)
   return victim;
 }
 
+/**
+ * @brief Analizza la TLB alla ricerca di un frame libero, se lo trova ritorna il suo indice
+ *        Se non trova spazi liberi ritorna -1
+ *
+ * @return int
+ */
 static int vmtlb_searchIndex(void)
 {
   int i, j;
@@ -89,8 +105,9 @@ static int vmtlb_searchIndex(void)
 }
 
 /**
- * @brief Construct a new vmtlb init object
+ * @brief Crea un nuovo oggetto tlb e lo inizializza
  *
+ * @return int 
  */
 int vmtlb_init(void)
 {
@@ -107,6 +124,13 @@ int vmtlb_init(void)
   return 0;
 }
 
+/**
+ * @brief Se l'indice non è ancora stato trovato: cerca una entry vuota, se non c'è trova una entry da sostituire
+ *         Una volta selezionato l'indice, fa una tlb_write per aggiungere la nuova entry
+ *
+ * @param int, uint32_t, uint32_t
+ * @return void
+ */
 void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
 {
   int spl;
@@ -118,15 +142,17 @@ void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
     if (*index == -1)
     {
       *index = tlb_get_rr_victim();
-      vmstats_report.tlb_faultReplacement++;
+      vmstats_report_tlb_faultReplacement_increment(); 
     }
     else
-      vmstats_report.tlb_faultFree++;
+      vmstats_report_tlb_faultFree_increment();
   }
   else
-    vmstats_report.tlb_faultFree++;
+    vmstats_report_tlb_faultFree_increment();
 
   spl = splhigh();
+
+  //Aggiunge la entry in tlb
   tlb_write(ehi, elo, *index);
 
   // Inserisce il bit a uno alla posizione index
@@ -137,6 +163,11 @@ void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
   splx(spl);
 }
 
+/**
+ * @brief Dato l'indice, invalida la entry corrispondente
+ *
+ * @param int
+ */
 void vmtlb_clean(int index)
 {
   int spl;
@@ -154,27 +185,3 @@ void vmtlb_clean(int index)
   splx(spl);
 }
 
-/*
-int tlb_init(void) {
-
-}
-int tlb_write_entry(void) { }
-int tlb_replace_entry (void) { }
-
- */
-
-/* cose probabilment einutili che ho scritto io
-//modificare le entry della tlb in modo che segni quali pagine sono RW e RO
-//se si tenta di accedere ad RO allora si generi un'eccezione senza far crashare il kernel
-  --> dirty bit serve per segnare una entry come read only (0) o read/write (1)
-
-//TLB init
-//TLB destroy
-//TLB_add_entry
-//TLB_replace entry
-//TLB_miss
-//TLB_find
-//TLB _destroy_entry
-
-//TLB check process --> bisogn aassicurarsi che tutte le entri nella TLB siano appartenenti al processo
-*/

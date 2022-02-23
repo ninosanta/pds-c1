@@ -18,23 +18,6 @@
 
 #include "coremap.h"
 
-/************************************************************
- *                                                          *
- * Osservazioni o note utili:                               *
- *  - Andare a vedere in OS161 MEMORY slide --> pagina 19   *
- *                                                          *
- ************************************************************/
-
-/*si può utilizzare una struttura coremap_entry per tenere traccia delle informazioni sulla pagina fisica
-coremap sarà un array di coremap_entry.
-Deve indicare se il frame è libero, se è occupato, indica quanti frame contigui per la stessa locazione
-
-
-coremap entry
-coremap ( tipo bitmap )
-
-*/
-
 /**
  * @brief La primo passo del sistema di memoria virtuale OS161 è la gestione delle pagine fisiche.
  * In generale, possiamo impacchettare le informazioni di una pagina fisica in una struttura (struct coremap_entry) e usalra per
@@ -128,7 +111,7 @@ int coremap_isTableActive(void)
 }
 
 /**
- * @brief
+ * @brief Ricerca un numero di pagine consecutive libere
  *
  * @param npages
  * @return paddr_t
@@ -212,10 +195,10 @@ paddr_t coremap_getppages(unsigned long npages)
 }
 
 /**
- * @brief
+ * @brief Dato l'indirizzo fisico, libera le pagine assegnate a paratire da quell'indirizzo, se allocate insieme
  *
  * @param addr
- * @return int
+ * @return int 
  */
 int coremap_freepages(paddr_t addr)
 {
@@ -236,20 +219,3 @@ int coremap_freepages(paddr_t addr)
     return 1;
 }
 
-// Deve trovare un segmento libero
-// void coremap_find_free(void)
-//{
-// cercare un frame libero
-// se libero chiama la funzione che lo occupi
-// se non c'è nessun frame libero
-// chiama la funzione che faccia swap out di qualcosa
-//}
-
-// Deve trovare N segmenti liberi contigui
-// void coremap_find_nfree(void /*int num_seg*/)
-//{
-// cerca n frame contigui liberi
-// se li trova, chiama la funzione che li occupi
-// se non li trova
-// chiama la funzione che li trovi
-//}
