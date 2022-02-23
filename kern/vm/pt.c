@@ -144,7 +144,7 @@ int pt_replace_entry(pid_t pid)
 }
 
 /**
- * @brief Funzione che cerca la pagina in memoria piiù vecchia in assoluto, e ne restituisce l'indice
+ * @brief Funzione che cerca la pagina in memoria più vecchia in assoluto, e ne restituisce l'indice
  * 
  * @return int 
  */
@@ -184,10 +184,15 @@ int pt_replace_any_entry(void){
 unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     unsigned int i = 0;
 
-
-    spinlock_acquire( &stealmem_lock ); 
+    spinlock_acquire( &stealmem_lock );
+    /* Scansione linerare ricercando la corrispondenza tra i seguenti paramentri:
+        - Pid
+        - Indirizzo virtuale (vaddr)
+        - validazione della pagina */
     while ( i < nRamFrames){
         if( ipt[i].pid == pid && ipt[i].vaddr == vaddr && ipt[i].invalid == 0){
+            // L'indirizzo fisico corrisponde all'indice della pagina per la 
+            // dimensione della pagina stessa
             *paddr= (i*PAGE_SIZE);
             spinlock_release(&stealmem_lock); 
             return 1;
@@ -196,10 +201,11 @@ unsigned int pt_get_paddr ( vaddr_t vaddr, pid_t pid , paddr_t* paddr){
     }
     spinlock_release( &stealmem_lock ); 
 
-    if(i == nRamFrames)
-        return 0;
     
-    return 0;  // non presente in memoria
+    if(i == nRamFrames)
+        return 0; // La pagina richiesta non è presente nella page table
+    
+    return 0;  // La pagina richiesta non è presente nella nella page table
 } 
 
 /**
@@ -231,6 +237,8 @@ void pt_remove_entries(pid_t pid)
 
     spinlock_acquire(&stealmem_lock);
 
+    // Ricerca tutte le corrispondeze delle pagine associate al pid 
+    // ricevuto come parametro per invalidarle
     for (i = 0; i < nRamFrames; i++)
     {
         if (ipt[i].pid == pid)
@@ -256,8 +264,9 @@ void pt_destroy(void)
 
     spinlock_acquire(&stealmem_lock);
     for (i = 0; i < nRamFrames; i++)
-    {
-        kfree((void *)&ipt[i]);
+    {   
+        // De-allocazione della memoria
+        kfree((void *)&ipt[i]); 
     }
     spinlock_release(&stealmem_lock);
 }
@@ -306,7 +315,7 @@ void pt_setFlagsAtIndex(int index, unsigned char val)
     ipt[index].flags |= val;
 }
 
-//Tentativo di creare una inverted page table con tempi di ricerca minori
+// Alternativa di una inverted page table con tempi di ricerca minori
 #ifdef FIFOSCHEDULING
 
 struct ipt_fifo_node
