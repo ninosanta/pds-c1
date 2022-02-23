@@ -27,8 +27,8 @@
  */
 
 // Define
-#define RAMFRAMES_FREE 0
-#define RAMFRAMES_ALLOCATED 1
+#define RAMFRAME_FREE 0
+#define RAMFRAME_ALLOCATED 1
 #define ALLOCSIZE_DEFAULT 0 // Numero di pagine allocate di default
 
 // AllocTable
@@ -36,10 +36,10 @@
 #define ALLOCTABLE_DISABLE 0
 
 // Variabili globali
-static struct spinlock pt_lock = SPINLOCK_INITIALIZER; // Gestione in mutua esclusione
+static struct spinlock pt_lock = SPINLOCK_INITIALIZER; 
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
-static unsigned int nRamFrames = 0;         // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
+static unsigned int nRamFrames = 0;         // Dimensione della memoria Ram assegnata al Boot (dipende da sys161.conf)
 static unsigned char *freeRamFrames = NULL; // Vettore di marcaggi delle locazioni occupate (valore 1) e libere (valore 0)
 static unsigned long *allocSize = NULL;     // Dimensione allocata alle varie pagine
 static int allocTableActive = 0;
@@ -83,7 +83,7 @@ int coremap_init(void)
     // Inizializzazione dei vettori freeRamFrame e allocSize
     for (i = 0; i < nRamFrames; i++)
     {
-        freeRamFrames[i] = (unsigned char)RAMFRAMES_FREE;
+        freeRamFrames[i] = (unsigned char)RAMFRAME_FREE;
         allocSize[i] = (unsigned long)ALLOCSIZE_DEFAULT;
     }
 
@@ -148,7 +148,7 @@ static paddr_t getfreeppages(unsigned long npages)
     if (found > 0)
     {
         for (i = found; i < found + np; i++)
-            freeRamFrames[i] = (unsigned char)RAMFRAMES_FREE;
+            freeRamFrames[i] = (unsigned char)RAMFRAME_FREE;
 
         allocSize[found] = np;
         addr = (paddr_t)found * PAGE_SIZE;
@@ -213,7 +213,7 @@ int coremap_freepages(paddr_t addr)
 
     spinlock_acquire(&pt_lock);
     for (i = first; i < first + np; i++)
-        freeRamFrames[i] = (unsigned char)RAMFRAMES_ALLOCATED;
+        freeRamFrames[i] = (unsigned char)RAMFRAME_ALLOCATED;
     spinlock_release(&pt_lock);
 
     return 1;

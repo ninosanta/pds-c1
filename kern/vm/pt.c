@@ -32,72 +32,6 @@ static struct ipt_t *ipt = NULL;
  *                                                          *
  ************************************************************/
 
-//Tentativo di creare una inverted page table con tempi di ricerca minori
-#ifdef FIFOSCHEDULING
-
-struct ipt_fifo_node
-{
-    unsigned char index_ipt;
-    struct ipt_fifo *next;
-};
-
-struct ipt_fifo
-{
-    struct ipt_fifo_node *head;
-    struct ipt_fifo_node *tail;
-
-    unsigned int size;
-};
-
-static struct ipt_fifo_node *fifo_node_Create(unsigned int index_ipt)
-{
-    struct ipt_fifo_node *node;
-
-    node = (struct pt_fifo_node *)kmalloc(sizeof(struct ipt_fifo_node));
-    node->index_ipt = index_ipt;
-    node->next = NULL;
-
-    return node;
-}
-
-static void fifo_node_Insert(unsigned int index_ipt)
-{
-    struct ipt_fifo_node *node = fifo_node_Create(index_ipt);
-    if (list_replacement != NULL)
-    {
-        if (list_replacement->head == NULL)
-        {
-            list_replacement->head = node;
-            list_replacement->tail = node;
-        }
-        else
-        {
-            list_replacement->tail->next = node;
-        }
-    }
-}
-
-static int fifo_node_Remove()
-{
-    struct ipt_fifo_node *node = NULL;
-    int value = -1;
-
-    if (list_replacement != NULL)
-    {
-        if (list_replacement->head != NULL)
-        {
-            node = list_replacement->head;
-            value = node->index_ipt;
-            list_replacement->head = list_replacement->head->next;
-
-            kfree(node);
-        }
-    }
-
-    return value;
-}
-#endif
-
 /**
  * @brief Inizializzazione della Invreted Page Table
  * 
@@ -372,3 +306,69 @@ void pt_setFlagsAtIndex(int index, unsigned char val)
 {
     ipt[index].flags |= val;
 }
+
+//Tentativo di creare una inverted page table con tempi di ricerca minori
+#ifdef FIFOSCHEDULING
+
+struct ipt_fifo_node
+{
+    unsigned char index_ipt;
+    struct ipt_fifo *next;
+};
+
+struct ipt_fifo
+{
+    struct ipt_fifo_node *head;
+    struct ipt_fifo_node *tail;
+
+    unsigned int size;
+};
+
+static struct ipt_fifo_node *fifo_node_Create(unsigned int index_ipt)
+{
+    struct ipt_fifo_node *node;
+
+    node = (struct pt_fifo_node *)kmalloc(sizeof(struct ipt_fifo_node));
+    node->index_ipt = index_ipt;
+    node->next = NULL;
+
+    return node;
+}
+
+static void fifo_node_Insert(unsigned int index_ipt)
+{
+    struct ipt_fifo_node *node = fifo_node_Create(index_ipt);
+    if (list_replacement != NULL)
+    {
+        if (list_replacement->head == NULL)
+        {
+            list_replacement->head = node;
+            list_replacement->tail = node;
+        }
+        else
+        {
+            list_replacement->tail->next = node;
+        }
+    }
+}
+
+static int fifo_node_Remove()
+{
+    struct ipt_fifo_node *node = NULL;
+    int value = -1;
+
+    if (list_replacement != NULL)
+    {
+        if (list_replacement->head != NULL)
+        {
+            node = list_replacement->head;
+            value = node->index_ipt;
+            list_replacement->head = list_replacement->head->next;
+
+            kfree(node);
+        }
+    }
+
+    return value;
+}
+#endif
