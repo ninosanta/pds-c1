@@ -117,7 +117,7 @@ typedef struct  {
     vaddr_t v_pages; 
     pid_t pid; 
     unsigned char flags;
-}swapfile;
+} swapfile;
 ```
 Lo scheletro della struttura utilizzata è quello soprariportato. Il vettore `swapfile[]` viene allocato e inizializzato nel momento in cui viene fatto il bootstrap della memoria virtuale con una chiamata a `swapfile_init()`. La dimensione è pari a `SWAP_SIZE` definita in `vm.h`. 
 Le operazioni principali per la sua gestione sono `swapfile_swapin()` e `swapfile_swapout()`.
@@ -126,10 +126,40 @@ Le operazioni principali per la sua gestione sono `swapfile_swapin()` e `swapfil
 
 `swapfile_swapout()` viene chiamata sia dalle funzioni `vm_fault_page_replacement_[code][data][stack]()` che da `swapfile_swapin()`. Le prime in caso la pagina richiesta non si trovi neanche nello swapfile, la seconda nel caso opposto. Il suo compito è cercare un frame libero nello swapfile, riportare la pagina da rimpiazzare in backing store e invalidando l'eventuale entry nella tlb con `vmtlb_clean()`  e quella in pagetable con `pt_remove_entry()`.
 
-
 ### vm_tlb.c
 
+In questo file C è presente il codice necessario per la manipolazione della TLB. Essa è stata rappresentata attraverso la seguente struttura dati:
+```c
+static struct tlb_map_t tlb_map;
+
+typedef struct tlb_map_t {
+  unsigned char *map;  /* ogni bit identificherà una cella della TLB  */
+  unsigned char size;  /* dimensione del vettore map */
+} tlb_map_t;
+```
+Tale struttura verrà allocata attraverso la funzione `tlbmap_init()` e inizializzata attraverso la funzione `vmtlb_init()`.
+
+La funzione `tlb_get_rr_victim()`, utilizzando un algoritmo basato sul Round Robin, si occupa della selezione di una vittima all'interno della TLB.
+
+La funzione `vmtlb_searchIndex()` si occupa di scandire in mutua esclusione la TLB alla ricerca di un frame libero. Ciò lo fa sfruttando un doppio ciclo: un ciclo esterno per ogni entry del vettore `tlb_map.map[]` e uno interno su ogni bit di ogni entry del vettore. Una volta trovato un bit libero della TLB, ne ritornerà il suo indice, altrimenti ritornerà `-1`.
+Tale funzione, verrà utilizzata dalla `vmtlb_write()`. Quest'ultima, a sua volta, viene chiamata in [addrspace.c](#addrspacec) dalla `vm_fault()` per inserire una nuova entry nella TLB dopo un fault. Infatti, essa cercherà una entry vuota tramite la `vmtlb_searchIndex()` e se anche questa non dovesse trovare una entry libera, allora selezionerà una vittima da sostituire tramite la funzione `tlb_get_rr_victim()`. Infine,una volta trovato un indice, aggiungerà la nuova entry chiamando la funzione MIPS `tlb_write()`.
+
+Infine, troviamo la funzione `vmtlb_clean()` che, dato l'indice, ne invaliderà la entry corrispondente. Essa sarà usata dalle funzioni `swapfile_swapout()` (in [swapfile.c](#swapfilec)) e `as_activate()` (in [addrspace.c](#addrspacec)).
+
 ### vmstats.c
+
+In questo file sono presenti le funzioni per l'inizializzazioine, l'incremento e la stampa delle statistiche. Queste sono raccolte in una struttura definita in `vmstats.h`. 
+
++ `tlb_fault`: numero di TLB misses. Incrementato in `vm_fault()`
++ `tlb_faultFree`: numero di TLB miss per cui c'era spazio per una nuova TLB entry
++ `tlb_faultReplacement`: numero di TLB
++ `unsigned int tlb_invalidation`: numero di volte in cui la TLB è stata invalidata. Incrementato quando un nuovo processo viene attivato e le entry relative al vecchio processo devono essere invalidate in `as_activate()`
++ `tlb_reload`: numero di volte in cui la pagina è stata trovata nella page table dopo un TLB miss. Incrementato in `vm_fault()` se la pagina è stata trovata da `pt_get_paddr()` 
++ `pf_zero`: numero di TLB miss che richiedono che una pagina venga azzerata. Incrementato in `vm_fault_page_replacement_[code][data][stack]()` poichè caricare la nuova pagina necessita di azzerare lo spazio precedentemente occupato dall'altra pagina.
++ `pf_disk`: numero di page fault che richiedono che una pagina venga caricata dal disco Incrementato in `vm_fault_page_replacement_[code][data][stack]()`.
++ `pf_elf`: numero di page fault che richiedono che una pagina venga caricata dall'ELFfile. Incrementato in `vm_fault_page_replacement_[code][data][stack]()`.
++ `pf_swapin`: numero di page fault che richiedono una pagina dallo swapfile. Incrementato in `swapfile_swapin()`.
++ `pf_swapout`: numero di pagine che richiedono che una pagina venga scritta nello swapfile. Incrementato in `swapfile_swapout()`.
 
 ## Statistiche
 
