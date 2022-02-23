@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+//Librerie
 #include <types.h>
 #include <kern/errno.h>
 #include <lib.h>
@@ -41,7 +42,6 @@
 #include <cpu.h>
 #include <thread.h>
 #include <vnode.h>
-
 #include <vfs.h>
 #include <uio.h>
 
@@ -269,7 +269,7 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 		if (as->count_proc >= MAX_PROC_PT)
 		{
 			indexReplacement = pt_replace_entry(pid);
-			ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index. Da capire
+			ix = pt_getFlagsByIndex(indexReplacement) >> 2; 
 			swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 			as->count_proc--;
 			*paddr = indexReplacement * PAGE_SIZE;
@@ -280,14 +280,13 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 			if (*paddr == 0)
 			{
 				indexReplacement =  pt_replace_any_entry();
-				//indexReplacement = pt_replace_entry(pid);
-				ix = pt_getFlagsByIndex(indexReplacement) >> 2; // overwrite tlb_index
+				ix = pt_getFlagsByIndex(indexReplacement) >> 2;
 				swapfile_swapout(pt_getVaddrByIndex(indexReplacement), indexReplacement * PAGE_SIZE, pt_getPidByIndex(indexReplacement), pt_getFlagsByIndex(indexReplacement));
 				as->count_proc--;
 				*paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
-		//-------------------------------------------
+
 		vmstats_report_pf_zero_increment();
 
 		as_zero_region(*paddr, 1);
@@ -318,7 +317,7 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 		if (ix != -1)
 			flags |= ix << 2;
 		result = pt_add_entry(faultaddress, *paddr, pid, flags);
-		// ?
+
 		if (result < 0)
 			return -1;
 
@@ -372,15 +371,13 @@ static int vm_fault_page_replacement_stack(struct addrspace *as, vaddr_t faultad
 				*paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
-		//-------------------------------------------
-
 		as_zero_region(*paddr, 1);
 
 		vmstats_report_pf_disk_increment();
 
 		if (ix != -1)
 			flags |= ix << 2;
-		result = pt_add_entry(faultaddress, *paddr, pid, flags); // qui puoi scrivere
+		result = pt_add_entry(faultaddress, *paddr, pid, flags);
 		if (result < 0)
 			return -1;
 
@@ -520,22 +517,17 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 	KASSERT((paddr & PAGE_FRAME) == paddr);
 
 	
-/*******DA COMMENTARE E SPIEGARE BENE*********/
-
+    /*****************************************************************
+    * virtual page frame number (20 bit) | pid (6 bit) | pad (6 bit)* EHI
+    * **********************************************************************************************
+    * physical page frame number (20 bit)| no cache bit | dirty bit | valid bit | global bit | pad * ELO
+    * **********************************************************************************************/
 	ehi = faultaddress | pid << 6;
-	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //è stato scommentato dalla libreria "tlb.h" --> dobbiamo capire cosa significa
-	if ((flags & 0x01) != 0x01)				  // se non è settato l'ultimo bit allora la pagina è modificabile
-		elo |= TLBLO_DIRTY;					  // page is modifiablebamek
 
-	/* Abbiamo inserito l'informazione sul pid perciò TLBLO_GLOBAL non dovrebbe essere presente. Tuttavia
-per motivi a me oscuri (probabilmente va modificato qualche registro della cpu in modo tale che
-la cpu possa associare il pid del processo in esecuzione e con un pid trovato nelle entry **tale registro è entryhi**)
-se non setto il flag, il sistema va in crash (questo si può spiegare).
-Ad ogni modo, è utile avere il pid a portata così da evitare il flush ad ogni context switch ma
-implementare le system call per sincronizzazione non ha senso, i programmi che si basano e.g. su
-fork sarebbero inutilizzabili (con TLBLO_GLOBAL e due processi che fanno riferimento allo stesso vaddr generano
-errore di entry duplicata in tlb)
-*/
+	elo = paddr | TLBLO_VALID | TLBLO_GLOBAL; //Se non viene utilizzato il TLBLO_GLOBAL il sistema va in crash
+	if ((flags & 0x01) != 0x01)	// se non è settato l'ultimo bit allora la pagina è modificabile
+		elo |= TLBLO_DIRTY;					  
+
 
 	//Aggiungo la entry nella tabella
 	vmtlb_write(&ix, ehi, elo);

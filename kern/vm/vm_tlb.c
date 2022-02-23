@@ -30,6 +30,11 @@ typedef struct tlb_map_t
   unsigned char size; // Dimensione del vettore map
 } tlb_map_t;
 
+/************************************************************
+ *                                                          *
+ * Implementazione delle funzioni                           *
+ *                                                          *
+ ************************************************************/
 
 /**
  * @brief Costruttore della struttura dati strcut tlb_map
@@ -80,8 +85,6 @@ static int vmtlb_searchIndex(void)
   for (i = 0; i < tlb_map.size; i++)
   {
     // Analizza il byte alla ricerca di un bit a zero
-    // 0xFF corrisponde a tutti i bit a 1. L'assenza di un bit comporta un risoltuato diveso da OxFF
-    // Osservazioni: non credo sia utile avere l'operatore logico & 0xFF. Si sta applicando una maschera di soli uno
     if ((tlb_map.map[i] & 0xFF) == 0xFF)
       continue; // In questo blocco non abbiamo nessuna cella libera
 
@@ -140,6 +143,7 @@ void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
 
     if (*index == -1)
     {
+      //Se non trovato seleziono una vittima da rimpiazzare
       *index = tlb_get_rr_victim();
       vmstats_report_tlb_faultReplacement_increment(); 
     }
@@ -155,10 +159,8 @@ void vmtlb_write(int *index, uint32_t ehi, uint32_t elo)
   tlb_write(ehi, elo, *index);
 
   // Inserisce il bit a uno alla posizione index
-  // Avendo una suddivisione dei blocchi su 8 bit (unsigned char), occore posizionarsi nella
-  // cella corretta e inserire il bit con valore 1 nella posizione corretta
   tlb_map.map[*index / BYTE_BIT] |= 1 << (*index % BYTE_BIT);
-
+  
   splx(spl);
 }
 
@@ -176,11 +178,9 @@ void vmtlb_clean(int index)
   tlb_write(TLBHI_INVALID(index), TLBLO_INVALID(), index);
 
   // Imposta il bit della cella da pulire a zero
-  // Si ricerca il blocco i-esimo e si esegue l'operatore & bit a bit
-  // tra il valore stesso e una sequenza di bit a 1 (0xff) e si inverte il bit
-  // di interesse a 0 cosi' da rimuovere il valore 1
-  tlb_map.map[index / BYTE_BIT] &= ~(1 << (index % BYTE_BIT));
-
+  tlb_map.map[index / BYTE_BIT] &= ~(1 << (index % BYTE_BIT)); // Si ricerca il blocco i-esimo e si esegue l'operatore & bit a bit
+                                                          // tra il valore stesso e una sequenza di bit a 1 (0xff) e si inverte il bit
+                                                          // di interesse a 0 cosi' da rimuovere il valore 1
   splx(spl);
 }
 

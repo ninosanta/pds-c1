@@ -25,6 +25,13 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER; // Gestione in mutu
 static unsigned int nRamFrames = 0; // Vettore dinamico della memoria Ram assegnata al Boot (dipende da sys161.conf)
 static struct ipt_t *ipt = NULL;
 
+
+/************************************************************
+ *                                                          *
+ * Implementazione delle funzioni                           *
+ *                                                          *
+ ************************************************************/
+
 //Tentativo di creare una inverted page table con tempi di ricerca minori
 #ifdef FIFOSCHEDULING
 
@@ -173,10 +180,6 @@ int pt_add_entry(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag)
     return 0;
 }
 
-//Funzione che, dato il pid del processo, cerca 
-//una pagina del processo stesso da sostituire 
-//all'interno della page table
-//Restituisce l'indice della cella da sostituire
 /**
  * @brief Funzione che, dato il pid del processo, cerca una pagina del processo stesso da sostituire all'interno della page table
  *        Restituisce l'indice della cella da sostituire

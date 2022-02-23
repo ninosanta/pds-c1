@@ -82,14 +82,11 @@ int swapfile_init(long length)
     }
     spinlock_init(&swapfile_lock);
 
-    //vmstats_report.pf_swapin = 0;
-    //vmstats_report.pf_swapout = 0;
-
     return SWAPMAP_INIT_SUCCESS;
 }
 
 /**
- * @brief Cerca se la paggina passata come parametro si trova nel file, in modo da ottenere il suo indirizzo nel backing store
+ * @brief Cerca se la pagina passata come parametro si trova nel file, in modo da ottenere il suo indirizzo nel backing store
  *        Prende una pagina del backing store e fa swap con una nella page table
  * 
  * @param vaddr 
@@ -134,7 +131,7 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
                     *paddr = indexR * PAGE_SIZE;
                 }
             }
-            // clean the page just got by allocation (or previously swapped)
+            // Pulisce la pagina appena presa
             as_zero_region(*paddr, 1); // Inizilizza a 0 la pagina
             vmstats_report_pf_zero_increment();
 
@@ -152,11 +149,11 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
                 kprintf("ELF: short read on header - file truncated?\n");
                 /* return ENOEXEC; */
             }
-            // pid equals to -1 means that the referenced block in the swapfile can be now reused
-            sw[i].pid = -1;
-            // add the recently swapped-in page in the IPT
-            vmstats_report_pf_swapin_increment(); // Incremento numero di swapin effettuate
 
+            // pid uguale a -1 significa che il blocco referenziato nello swapfile può essere riusato
+            sw[i].pid = -1;
+            vmstats_report_pf_swapin_increment(); // Incremento numero di swapin effettuate
+            //Aggiungo la nuova pagine nella page table
             pt_add_entry(vaddr, *paddr, pid, sw[*paddr / PAGE_SIZE].flags);
             return SWAPMAP_SUCCESS;
         }
@@ -183,7 +180,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     if (vaddr > MIPS_KSEG0)
         return -1;
 
-    // CERCO IL PRIMO FRAME LIBERO IN CUI POTER FARE SWAPOUT
+    // Cerco il primo frame libero in cui poter fare swapout
     spinlock_acquire(&swapfile_lock);
     for (i = 0; i < sw_length; i++)
     {
@@ -198,7 +195,7 @@ int swapfile_swapout(vaddr_t vaddr, paddr_t paddr, pid_t pid, unsigned char flag
     if (i == sw_length)
         panic("Out of swap space");
 
-    // FACCIO SWAPOUT
+    // Faccio SWAPOUT
     uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(paddr), PAGE_SIZE, frame_index * PAGE_SIZE, UIO_WRITE);
     err = VOP_WRITE(swapstore, &ku);
     if (err)
