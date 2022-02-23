@@ -88,6 +88,8 @@ static int vmtlb_searchIndex(void)
     if ((tlb_map.map[i] & 0xFF) == 0xFF)
       continue; // In questo blocco non abbiamo nessuna cella libera
 
+    // Nella cella i-esima abbiamo almeno un bit a 0.
+    // Si ricerca la posizione del bit a 0 per ritornarlo al chiamante
     for (j = 0; j < BYTE_BIT; j++)
     {
       // Inversione dei bit per ricercare il bit libero (valore iniziale a 0).
@@ -95,11 +97,14 @@ static int vmtlb_searchIndex(void)
       // (con valore 1 in quando si e' applicato l'operatore not bit a bit)
       if (((~tlb_map.map[i]) & shift) == shift)
       {
+        // Bit a 0 trovato
         spinlock_release(&tlb_lock);
         return (BYTE_BIT * i) + j; // Ritorna la posizione del bit libero
       }
       else
-        shift <<= 1;
+        // Bit a 1 non trovato
+        shift <<= 1; // Sposta il bit a 1. 
+                     // Il valore della variabile sarà compreso tra 0x01 e 0x80
     }
   }
   spinlock_release(&tlb_lock);
