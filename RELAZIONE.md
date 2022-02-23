@@ -48,9 +48,43 @@ Poi troviamo la funzione `coremap_getppages()` che in realtà è un wrapper alla
 In fine, troviamo la funzione `coremap_freepages()`. Essa, passatole come parametro l'indirizzo fisico `addr`, libererà le pagine precedentemente allocate e lo farà a paratire da quell'indirizzo, recuperando il numero di pagine da liberare dal vettore `allocSize[]`.
 
 ### addrspace.c
-TODO
-`vm_fault()` già discussa [in precedenza](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault).
 
+Qui è dove viene gestita l'implementazione della Virtual Memory. Lo spazio di indirizzamento di un programma in OS/161 può essere rappresentato come l'insieme di tre segmenti: *codice*, *dato* e *stack*. In particolare, abbiamo optato per la creazione di una `struct addrspace{}` (inizializzata tramite la funzione `as_create()`) che contenesse le informazioni riguardanti i tre segmenti:
+
+```C
+/* in kern/include/addrspace.h */
+
+struct addrspace {
+        vaddr_t as_vbase1;  /* base virtual address of code segment */
+        size_t as_npages1;  /* size (in pages) of code segment */
+        vaddr_t as_vbase2;  /* base virtual address of data segment */
+        size_t as_npages2;  /* size (in pages) of data segment */
+        paddr_t as_stackpbase;  /* base physical address of stack */
+
+        // Additional data:
+        off_t code_offset;  /* code offset within elf file */
+        uint32_t code_size;
+        off_t data_offset; /* data offset within elf file */
+        uint32_t data_size;
+        struct vnode *v; /* file descriptor */
+
+        int count_proc;  /* pages counter for this process loaded into the Page Table */
+};
+```
+
+Innanzitutto, in questo file C, è presente la funzione `vm_bootstrap()` che viene viene chiamata, per l'appunto, al bootstrap del sistema e ha il cimpito di inizializzare tutto ciò che riguarda il Virtual Memory System i.e., la coremap, la Page Table, lo swapfile e la tlb.
+
+Precedentemente, parlando del [TLB fault](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault), abbiamo discusso la funzione `vm_fault()` qui implementata e le relative funzioni `vm_fault_page_replacement_code()`, `vm_fault_page_replacement_data()` e `vm_fault_page_replacement_stack()`. Queste tre funzioni sono molto simili tra loro e, inanzitutto, dopo aver controllato che non si sfori il range di indirizzi appartenente al relativo segmento, esse avviano l'inserimento delle pagine del segmento del processo, in particolare:
+* Se il processo ha già un numero di pagine in memoria >= al numero massimo consentito i.e., 32, allora sarà una pagina dello stesso processo ad essere cercata e rimpiazzata combinando delle primitive messe a disposizione da [pt.c](#ptc) e [swapfile.c](#swapfilec). 
+* Altrimenti, tramite la `coremap_getppages()` (definita in [coremap.c](#coremapc)) si ricerca un frame libero. Se questo frame non sarà disponibile allora occorrera fare lo swap con una pagina appartentente a un qualsiasi altro processo seguendo una strategia FIFO.
+
+Successivamente la Page Table verrà aggiornata e, nel caso in cui il fault fosse partito da un segmento di codice, dall'ELF verrà caricata la relativa pagina tramite la `load_page_from_elf()` (definita in [loadelf.c](#loadelfc)).
+
+Altre funzioni degne di nota sono:
+* La `as_destroy()`: si occupa di rimuovere tutte le entries della Page Table di un determinato processo in fase di distruzione, chiude l'ELF file e finalmente libera lo spazio dell'addresspace.
+* La `as_activate()`: attiva l'addresspace del processo corrente, invalidando le entry della TLB appartenenti ad altri processi.
+* La `as_define_region()`: definisce una regione dell'addresspace settando l'indirizzo base, il numero di pagine, la dimensione e il vnode.
+ 
 ### pt.c
 
 ### swapfile.c
