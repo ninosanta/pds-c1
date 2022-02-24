@@ -137,7 +137,6 @@ int swapfile_swapin(vaddr_t vaddr, paddr_t *paddr, pid_t pid, struct addrspace *
             }
             // Pulisce la pagina appena presa
             as_zero_region(*paddr, 1); // Inizilizza a 0 la pagina
-            //vmstats_report_pf_zero_increment();
 
             // perform the I/O
             uio_kinit(&iov, &ku, (void *)PADDR_TO_KVADDR(*paddr), PAGE_SIZE, i * PAGE_SIZE, UIO_READ);
