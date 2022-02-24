@@ -193,7 +193,6 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 		}
 		// Incremento il numero di TLB misses che hanno richiesto un azzeramento della pagina
 		as_zero_region(*paddr, 1);
-		vmstats_report_pf_zero_increment();
 
 		// In base all'indirizzo, calcolo la quantità di codice da leggere
 		if (faultaddress == vbase)
@@ -218,7 +217,9 @@ static int vm_fault_page_replacement_code(struct addrspace *as, vaddr_t faultadd
 									to_read,
 									(faultaddress == vbase) ? as->code_offset : (as->code_offset & PAGE_FRAME) + faultaddress - vbase);
 
-		
+		vmstats_report_pf_elf_increment(); 
+		vmstats_report_pf_disk_increment(); 
+
 		// Aggiungo una entry nella page table
 		// Settando il flag a read-only essendo una pagina di codice
 		flags = 0x01; // Read-only
@@ -278,9 +279,6 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 				*paddr = indexReplacement * PAGE_SIZE;
 			}
 		}
-
-		vmstats_report_pf_zero_increment();
-
 		as_zero_region(*paddr, 1);
 
 		if (faultaddress == vbase)
@@ -302,7 +300,8 @@ static int vm_fault_page_replacement_data(struct addrspace *as, vaddr_t faultadd
 		result = load_page_from_elf(as->v, *paddr + (faultaddress == vbase ? as->data_offset & ~PAGE_FRAME : 0),
 									to_read,
 									faultaddress == vbase ? as->data_offset : (as->data_offset & PAGE_FRAME) + faultaddress - vbase);
-
+		vmstats_report_pf_elf_increment(); 
+		vmstats_report_pf_disk_increment(); 	
 
 		if (ix != -1)
 			flags |= ix << 2;
