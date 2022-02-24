@@ -48,7 +48,7 @@
 #if OPT_PAGING
 
 // Parametro massimo di pagine associate a un processo onde evitare che un processo P1 domini sugli altri processi Px
-#define MAX_PROC_PT 32                          /* (successivamente 36 o >36)Massimo allocabile per ogni processo nella PT */
+#define MAX_PROC_PT 32        /* Massimo allocabile per ogni processo nella PT */
 
 #define SWAP_FILE 9*1024*1024
 #define SWAP_PAGE_SIZE 4*1024
