@@ -166,7 +166,6 @@ int pt_replace_any_entry(void){
             replace_index = i;
         }
     }
-    vmstats_report_tlb_faultReplacement_increment();
     spinlock_release(&stealmem_lock);
 
     return replace_index;

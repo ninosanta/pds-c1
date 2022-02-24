@@ -152,12 +152,12 @@ In questo file sono presenti le funzioni per l'inizializzazioine, l'incremento e
 
 + `tlb_fault`: numero di TLB misses. Incrementato in `vm_fault()`
 + `tlb_faultFree`: numero di TLB miss per cui c'era spazio per una nuova TLB entry
-+ `tlb_faultReplacement`: numero di TLB
-+ `unsigned int tlb_invalidation`: numero di volte in cui la TLB è stata invalidata. Incrementato quando un nuovo processo viene attivato e le entry relative al vecchio processo devono essere invalidate in `as_activate()`
++ `tlb_faultReplacement`: numero di TLB miss che richiedono un rimpiazzo di una entry. Viene incrementato in `vmtlb_write()`
++ `tlb_invalidation`: numero di volte in cui la TLB è stata invalidata. Incrementato quando un nuovo processo viene attivato e le entry relative al vecchio processo devono essere invalidate in `as_activate()`
 + `tlb_reload`: numero di volte in cui la pagina è stata trovata nella page table dopo un TLB miss. Incrementato in `vm_fault()` se la pagina è stata trovata da `pt_get_paddr()` 
-+ `pf_zero`: numero di TLB miss che richiedono che una pagina venga azzerata. Incrementato in `vm_fault_page_replacement_[code][data][stack]()` poichè caricare la nuova pagina necessita di azzerare lo spazio precedentemente occupato dall'altra pagina.
-+ `pf_disk`: numero di page fault che richiedono che una pagina venga caricata dal disco Incrementato in `vm_fault_page_replacement_[code][data][stack]()`.
-+ `pf_elf`: numero di page fault che richiedono che una pagina venga caricata dall'ELFfile. Incrementato in `vm_fault_page_replacement_[code][data][stack]()`.
++ `pf_zero`: numero di TLB miss che richiedono che una pagina venga azzerata. Incrementato in `vm_fault_page_replacement_stack()` poichè lo stack necessita una pagina vuota.
++ `pf_disk`: numero di page fault che richiedono che una pagina venga caricata dal disco Incrementato in `vm_fault_page_replacement_[code][data]()` dopo aver caricato una pagina dall'elf file e in `vm_fault()` dopo aver caricato la pagina con `swapfile_swapin()`.
++ `pf_elf`: numero di page fault che richiedono che una pagina venga caricata dall'ELFfile. Incrementato in `vm_fault_page_replacement_[code][data]()`.
 + `pf_swapin`: numero di page fault che richiedono una pagina dallo swapfile. Incrementato in `swapfile_swapin()`.
 + `pf_swapout`: numero di pagine che richiedono che una pagina venga scritta nello swapfile. Incrementato in `swapfile_swapout()`.
 
@@ -165,9 +165,11 @@ In questo file sono presenti le funzioni per l'inizializzazioine, l'incremento e
 
 |    Test    | TLB Faults | TLB Faults with Free | TLB Faults with Replace | TLB Invalids | TLB Reloads | Page Faults (zero filled) | Page Faults (disk) | Page Faults from ELF | Swapin | Swapout |
 | :--------: | :--------: | :------------------: | :---------------------: | :----------: | :---------: | :-----------------------: | :----------------: | :-----------: | :-----------: | :-------------: |
-|   palin    |     5      |          5           |            0            |      7       |      0      |             1            |         4          |       0 4      |       0       |        0        |
+|   palin    |     5      |          5           |            0            |      7       |      0      |             1            |         4          |       4      |       0       |        0        |
 |    sort    |     2771      |          2771           |            0            |      7      |      0      |            1            |         2770          |       291       |       2479       |        2740        |
 |    huge    |     3688      |          3688           |            0            |      6       |      0      |             1             |         3687          |       514       |       3173       |        3657        |
 |  matmult   |     906      |          906           |            0            |      6       |      0      |             1             |         905          |       382       |       523       |        875        |
 |   ctest    |     127298      |          127298           |            0            |      7       |      0      |             1             |         127297          |       259       |       127038       |        127267        |
 |    zero    |     4      |          4           |            0            |      6       |      0      |             1             |         3          |       3       |       0       |        0        |
+
+Come si può notare nella tabella sovrstante, non avvengono TLB faults con replacement perchè, assegnate la dimensione della TLB e il numero limitato di pagine allocabili per processo, non ci sarà bisogno di sostituzione. Infatti quando avvengono dei miss, è perchè la pagina non è effettivamente in memoria e deve quindi essere caricata. Lo stesso comportamento influenza anche il valore di TLB reload, perchè, se la pagina è in RAM, allora sarà già presente una entry in TLB. Per quanto riguarda i page fault che richiedono una pagina vuota, si può affermare che la pagina di stack necessaria è una perchè i test effettuati non richiedono altro spazio nello stack.
