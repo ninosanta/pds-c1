@@ -111,7 +111,10 @@ void vmstats_report_print(void){
 		"page table with disk: %d\n"
 		"page table with elf: %d\n"
 		"page table with swapin: %d\n"
-		"page table with swapout: %d\n"
+		"page table with swapout: %d\n\n"
+        "(TLB Faults with Free + TLB Faults with Replace) = %d == (TLB Faults) = %d ? -> %s\n"
+        "(TLB Reloads + Page Faults (Disk) + Page Faults (Zeroed)) = %d == (TLB Faults) = %d ? -> %s\n"
+        "(Page Faults from ELF + Page Faults from Swapfile) = %d == (Page Faults (Disk)) = %d ? -> %s\n"
 		
 		"\n\n", vmstats_report.tlb_fault, 
 		vmstats_report.tlb_faultFree, 
@@ -122,6 +125,12 @@ void vmstats_report_print(void){
 		vmstats_report.pf_disk,
 		vmstats_report.pf_elf,
 		vmstats_report.pf_swapin,
-		vmstats_report.pf_swapout
+		vmstats_report.pf_swapout,
+        vmstats_report.tlb_faultFree+vmstats_report.tlb_faultReplacement, vmstats_report.tlb_fault, 
+        (vmstats_report.tlb_faultFree+vmstats_report.tlb_faultReplacement == vmstats_report.tlb_fault) ? "OK" : "WRONG!",
+        vmstats_report.tlb_reload+vmstats_report.pf_disk+vmstats_report.pf_zero, vmstats_report.tlb_fault,
+        (vmstats_report.tlb_reload+vmstats_report.pf_disk+vmstats_report.pf_zero == vmstats_report.tlb_fault) ? "OK" : "WRONG!",
+        vmstats_report.pf_elf+vmstats_report.pf_swapin, vmstats_report.pf_disk,
+        (vmstats_report.pf_elf+vmstats_report.pf_swapin == vmstats_report.pf_disk) ? "OK" : "WRONG!"
 		);
 } 
