@@ -90,12 +90,12 @@ Altre funzioni degne di nota sono:
 In questo file è presente il codice necessario per gestire l’Inverted Page Table, che tiene traccia per ogni frame fisico della RAM, della pagina virtuale in esso allocata. Tramite la `pt_init()` verranno inizializzate le strutture di supporto. La prima operazione è assegnare la dimensione alla variabile `nRamFrames`, dato che la dimensione della RAM viene letta solo all’accensione del sistema. In seguito viene allocato dinamicamente e inizializzato il vettore `ipt[]` con una dimensione di `nRamFrames`. 
 
 ```C
-struct ipt_t{
-        pid_t pid;
-        vaddr_t vaddr;
-        bool invalid;
-        unsigned char flags;
-        unsigned int counter;
+struct ipt_t {
+    pid_t pid;
+    vaddr_t vaddr;
+    bool invalid;
+    unsigned char flags;
+    unsigned int counter;
 };
 ```
 
@@ -113,7 +113,7 @@ Ogni volta che viene aggiunta una pagina con `pt_add_entry()` si fa una chiamata
 In questo file sono state implementate le funzioni per gestire il file di swap, file in cui vengono salvate le informazioni sulle pagine che vengono spostate dalla RAM al disco in caso di page replacement. In questo modo sono più velocemente accessibili se nuovamente richieste.
 
 ```C
-typedef struct  {
+typedef struct {
     vaddr_t v_pages; 
     pid_t pid; 
     unsigned char flags;
@@ -133,8 +133,8 @@ In questo file C è presente il codice necessario per la manipolazione della TLB
 static struct tlb_map_t tlb_map;
 
 typedef struct tlb_map_t {
-  unsigned char *map;  /* ogni bit identificherà una cella della TLB  */
-  unsigned char size;  /* dimensione del vettore map */
+    unsigned char *map;  /* bitmap: ogni bit identificherà una cella della TLB */
+    unsigned char size;  /* dimensione del vettore map */
 } tlb_map_t;
 ```
 Tale struttura verrà allocata attraverso la funzione `tlbmap_init()` e inizializzata attraverso la funzione `vmtlb_init()`.
