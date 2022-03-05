@@ -72,11 +72,11 @@ struct addrspace {
 };
 ```
 
-Innanzitutto, in questo file C, è presente la funzione `vm_bootstrap()` che viene viene chiamata, per l'appunto, al bootstrap del sistema e ha il compito di inizializzare tutto ciò che riguarda il Virtual Memory System i.e., la coremap, la Page Table, lo swapfile e la tlb.
+Innanzitutto, in questo file C, è presente la funzione `vm_bootstrap()` che viene viene chiamata nel `main()` e ha il compito di inizializzare tutto ciò che riguarda il Virtual Memory System i.e., la coremap, la Page Table, lo swapfile e la tlb.
 
 Precedentemente, parlando del [TLB fault](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault), abbiamo discusso la funzione `vm_fault()` qui implementata e le relative funzioni `vm_fault_page_replacement_code()`, `vm_fault_page_replacement_data()` e `vm_fault_page_replacement_stack()`. Queste tre funzioni sono molto simili tra loro e, inanzitutto, dopo aver controllato che non si sfori il range di indirizzi appartenente al relativo segmento, esse avviano l'inserimento delle pagine del segmento del processo, in particolare:
-* Se il processo ha già un numero di pagine in memoria >= al numero massimo consentito i.e., 32, allora sarà una pagina dello stesso processo ad essere cercata e rimpiazzata combinando delle primitive messe a disposizione da [pt.c](#ptc) e [swapfile.c](#swapfilec). 
-* Altrimenti, tramite la `coremap_getppages()` (definita in [coremap.c](#coremapc)) si ricerca un frame libero. Se questo frame non sarà disponibile allora occorrera fare lo swap con una pagina appartentente a un qualsiasi altro processo seguendo una strategia FIFO.
+* Se il processo ha già un numero di pagine in memoria >= al numero massimo consentito i.e., 32, allora sarà una pagina dello stesso processo ad essere cercata e rimpiazzata, combinando delle primitive messe a disposizione da [pt.c](#ptc) e [swapfile.c](#swapfilec). 
+* Altrimenti, tramite la `coremap_getppages()` (definita in [coremap.c](#coremapc)) si ricerca un frame libero. Se questo frame non sarà disponibile, allora occorrerà fare lo swap con una pagina appartentente a un qualsiasi altro processo seguendo una strategia FIFO.
 
 Successivamente la Page Table verrà aggiornata e, nel caso in cui il fault fosse partito da un segmento di codice o di dati, dall'ELF verrà caricata la relativa pagina tramite la `load_page_from_elf()` (definita in [loadelf.c](#loadelfc)).
 
@@ -87,26 +87,29 @@ Altre funzioni degne di nota sono:
  
 ### pt.c
 
-In questo file è presente il codice necessario per gestire l’Inverted Page Table, che tiene traccia per ogni frame fisico della RAM, della pagina virtuale in esso allocata. Tramite la `pt_init()` verranno inizializzate le strutture di supporto. La prima operazione è assegnare la dimensione alla variabile `nRamFrames`, dato che la dimensione della RAM viene letta solo all’accensione del sistema. In seguito viene allocato dinamicamente e inizializzato il vettore `ipt[]` con una dimensione di `nRamFrames`. 
+In questo file è presente il codice necessario per gestire l’Inverted Page Table che tiene traccia, per ogni frame fisico della RAM, della pagina virtuale in esso allocata. 
+
+Tramite la `pt_init()` verranno inizializzate le strutture di supporto. La prima operazione effettuata è assegnare la dimensione alla variabile `nRamFrames`, dato che la dimensione della RAM viene letta solo all’accensione del sistema. 
+In seguito, viene allocato dinamicamente ad una dimensione di `nRamFrames` e inizializzato il vettore `ipt[]`. 
 
 ```C
 struct ipt_t {
-    pid_t pid;
+    pid_t pid;  /* per distinguere le entry dei processi */
     vaddr_t vaddr;
     bool invalid;
     unsigned char flags;
-    unsigned int counter;
+    unsigned int counter;  /* the greater the counter, the oldest the entry */
 };
 ```
 
 Le funzioni per la sua gestione sono: 
-+ `pt_add_entry()` che viene utilizzata dalla `vm_fault_page_replacement_[code][data][stack]()` dopo aver trovato un frame libero o da rimpiazzare per caricare una pagina dal backing store. 
-+ `pt_replace_entry()` e `pt_replace_any_entry()` sono chiamate dalla `vm_fault_page_replacement_[code][data][stack]()` rispettivamente quando il processo ha già un massimo di pagine ad esso allocato e quando non sono presenti frame liberi in memoria. Nel primo caso la pagina da rimpiazzare dovrà appartenere al processo stesso. La strategia di rimpiazzamento è First In First Out. Infatti ad ogni entry della page table viene assegnato un valore `ipt[i] -> counter`, che viene usato per tenere traccia delle pagine da più tempo in RAM. La pagine con valore maggiore viene rimpiazzata. 
++ `pt_add_entry()` che viene utilizzata dalla `vm_fault_page_replacement_[code][data][stack]()` (definite in [addrspace.c](#addrspacec)) dopo aver trovato un frame libero o da rimpiazzare per caricare una pagina dal backing store. 
++ `pt_replace_entry()` e `pt_replace_any_entry()` sono chiamate dalla `vm_fault_page_replacement_[code][data][stack]()` rispettivamente quando il processo ha già raggiunto il massimo numero di pagine ad esso allocate e quando non sono presenti frame liberi in memoria. Nel primo caso la pagina da rimpiazzare dovrà appartenere al processo stesso. La strategia di rimpiazzamento è First In First Out. Infatti, ad ogni entry della page table viene assegnato un valore `ipt[i] -> counter`, che viene usato per tenere traccia delle pagine da più tempo in RAM. La pagine con valore maggiore viene rimpiazzata. 
 Ogni volta che viene aggiunta una pagina con `pt_add_entry()` si fa una chiamata a `upgrade_counter()`, che incrementa questo valore in ogni entry valida della tabella, mentre la nuova pagina viene inserita con valore 0.
 + `pt get_paddr()` viene usata dalla `vm_fault()` per sapere se, dato il pid e il virtual address, la pagina richiesta si trova in memoria e, se c’è, ne restituisce l’indirizzo fisico. 
-+ `pt_remove_entry()` e `pt_remove_entries()` servono per invalidare una o più entry della tabella. La seconda in particolare, viene chiamata alla chiusura di un processo dalla `as_destroy()` per invalidare tutti i frame appartenenti ad esso, in modo da poterli riutilizzare.
-+ `pt_destroy()` libera la page table attraverso la `kfree()`
-+ `pt_getFlagsByIndex()` ` pt_getVaddrByIndex()` ` pt_getPidByIndex()` `pt_setFlagsAtIndex()` sono funzioni che vengono utilizzate all’occorrenza per ottenere o settare i valori delle entry
++ `pt_remove_entry()` e `pt_remove_entries()` servono per invalidare una o più entry della tabella. La seconda, in particolare, viene chiamata alla chiusura di un processo dalla `as_destroy()` per invalidare **tutti** i frame appartenenti ad esso, in modo da poterli riutilizzare.
++ `pt_destroy()` libera la page table attraverso la `kfree()` su ogni entry.
++ `pt_getFlagsByIndex()`, ` pt_getVaddrByIndex()`, ` pt_getPidByIndex()` e `pt_setFlagsAtIndex()` sono funzioni che vengono utilizzate all’occorrenza per ottenere o settare i valori delle entry.
 
 ### swapfile.c
 
@@ -122,9 +125,9 @@ typedef struct {
 Lo scheletro della struttura utilizzata è quello sopra riportato. Il vettore `swapfile[]` viene allocato e inizializzato nel momento in cui viene fatto il bootstrap della memoria virtuale con una chiamata a `swapfile_init()`. La dimensione è pari a `SWAP_SIZE` definita in `vm.h`. 
 Le operazioni principali per la sua gestione sono `swapfile_swapin()` e `swapfile_swapout()`.
 
-`swapfile_swapin()` viene chiamata da `vm_fault()` in caso di page table miss, cosa che richiede una sostituzione di pagina. Il suo compito è cercare se la pagina richiesta si trova nel file. In caso affermativo deve caricarla effettuando lo swapout di un'altra pagina, trovata chiamando `pt_replace_entry()` e `swapfile_swapout()`. In seguito carica la pagina con `uio_kinit()` ed inseriscela nuova entry in page table con `pt_add_entry()`. 
+* `swapfile_swapout()` viene chiamata sia dalle funzioni `vm_fault_page_replacement_[code][data][stack]()` che da `swapfile_swapin()` (definite in [addrspace.c](#addrspacec)). Le prime, la chiamano nel caso in cui la pagina richiesta non si trovi neanche nello swapfile, la seconda nel caso opposto. Il suo compito è cercare un frame libero nello swapfile e riportare la pagina da rimpiazzare in backing store, invalidando l'eventuale entry nella tlb con `vmtlb_clean()` ( in [vm_tlb.c](#vm_tlbc)) e quella in page table con `pt_remove_entry()` (in [pt.c](#ptc)).
 
-`swapfile_swapout()` viene chiamata sia dalle funzioni `vm_fault_page_replacement_[code][data][stack]()` che da `swapfile_swapin()`. Le prime in caso la pagina richiesta non si trovi neanche nello swapfile, la seconda nel caso opposto. Il suo compito è cercare un frame libero nello swapfile, riportare la pagina da rimpiazzare in backing store e invalidando l'eventuale entry nella tlb con `vmtlb_clean()`  e quella in pagetable con `pt_remove_entry()`.
+* `swapfile_swapin()` viene chiamata da `vm_fault()` (in [addrspace.c](#addrspacec)) in caso di page table miss, la quale richiederà una sostituzione di pagina. Il suo compito è cercare se la pagina richiesta si trova nel file. In caso affermativo deve caricarla nella page table. Innanzitutto, dovrà effettuare lo swapout di un'altra pagina che troverà nella page table chiamando `pt_replace_entry()` e, per concludere, `swapfile_swapout()`. In seguito, potrà caricare la pagina con `uio_kinit()` ed inserirà la nuova entry in page table con `pt_add_entry()`.
 
 ### vm_tlb.c
 
@@ -141,10 +144,10 @@ Tale struttura verrà allocata attraverso la funzione `tlbmap_init()` e iniziali
 
 La funzione `tlb_get_rr_victim()`, utilizzando un algoritmo basato sul Round Robin, si occupa della selezione di una vittima da rimpiazzare all'interno della TLB.
 
-La funzione `vmtlb_searchIndex()` si occupa di scandire in mutua esclusione la TLB alla ricerca di un frame libero. Ciò lo fa sfruttando un doppio ciclo: un ciclo esterno per ogni entry del vettore `tlb_map.map[]` e uno interno su ogni bit di ogni entry del vettore. Una volta trovato un bit libero della TLB, ne ritornerà il suo indice, altrimenti ritornerà `-1`.
-Tale funzione, verrà utilizzata dalla `vmtlb_write()`. Quest'ultima, a sua volta, viene chiamata in [addrspace.c](#addrspacec) dalla `vm_fault()` per inserire una nuova entry nella TLB dopo un fault. Infatti, essa cercherà una entry vuota tramite la `vmtlb_searchIndex()` e se anche questa non dovesse trovare una entry libera, allora selezionerà una vittima da sostituire tramite la funzione `tlb_get_rr_victim()`. Infine,una volta trovato un indice, aggiungerà la nuova entry chiamando la funzione MIPS `tlb_write()`.
+La funzione `vmtlb_searchIndex()` si occupa di scandire, in mutua esclusione, la TLB alla ricerca di un frame libero. Ciò lo fa sfruttando un doppio ciclo: un ciclo esterno per ogni entry del vettore `tlb_map.map[]` e uno interno su ogni bit di ogni entry del vettore. Una volta trovato un bit libero della TLB, ne ritornerà il suo indice, altrimenti ritornerà `-1`.
+Tale funzione, verrà utilizzata dalla `vmtlb_write()`. Quest'ultima, a sua volta, viene chiamata in [addrspace.c](#addrspacec) dalla `vm_fault()` per inserire una nuova entry nella TLB dopo un fault. Infatti, essa cercherà una entry vuota tramite la `vmtlb_searchIndex()` e se anche questa non dovesse trovare una entry libera, allora selezionerà una vittima da sostituire tramite la funzione `tlb_get_rr_victim()`. Infine, una volta trovato un indice, aggiungerà la nuova entry chiamando la funzione MIPS `tlb_write()`.
 
-Infine, troviamo la funzione `vmtlb_clean()` che, dato l'indice, ne invaliderà la entry corrispondente. Essa sarà usata dalle funzioni `swapfile_swapout()` (in [swapfile.c](#swapfilec)) e `as_activate()` (in [addrspace.c](#addrspacec)).
+Per concludere, troviamo la funzione `vmtlb_clean()` che, dato l'indice, ne invaliderà la entry corrispondente. Essa sarà usata dalle funzioni `swapfile_swapout()` (in [swapfile.c](#swapfilec)) e `as_activate()` (in [addrspace.c](#addrspacec)).
 
 ### vmstats.c
 
@@ -153,8 +156,8 @@ In questo file sono presenti le funzioni per l'inizializzazioine, l'incremento e
 + `tlb_fault`: numero di TLB misses. Incrementato in `vm_fault()`.
 + `tlb_faultFree`: numero di TLB miss per cui c'era spazio per una nuova TLB entry. Incrementato in `vmtlb_write()`.
 + `tlb_faultReplacement`: numero di TLB miss che richiedono un rimpiazzo di una entry. Viene incrementato in `vmtlb_write()`.
-+ `tlb_invalidation`: numero di volte in cui la TLB è stata invalidata. Incrementato quando un nuovo processo viene attivato e le entry relative al vecchio processo devono essere invalidate in `as_activate()`
-+ `tlb_reload`: numero di volte in cui la pagina è stata trovata nella page table dopo un TLB miss. Incrementato in `vm_fault()` se la pagina è stata trovata da `pt_get_paddr()` 
++ `tlb_invalidation`: numero di volte in cui la TLB è stata invalidata. Incrementato quando un nuovo processo viene attivato e le entry relative al vecchio processo devono essere invalidate in `as_activate()`.
++ `tlb_reload`: numero di volte in cui la pagina è stata trovata nella page table dopo un TLB miss. Incrementato in `vm_fault()` se la pagina è stata trovata da `pt_get_paddr()`.
 + `pf_zero`: numero di TLB miss che richiedono che una pagina venga azzerata. Incrementato in `vm_fault_page_replacement_stack()` poichè lo stack necessita una pagina vuota.
 + `pf_disk`: numero di page fault che richiedono che una pagina venga caricata dal disco Incrementato in `vm_fault_page_replacement_[code][data]()` dopo aver caricato una pagina dall'ELF file e in `vm_fault()` dopo aver caricato la pagina con `swapfile_swapin()`.
 + `pf_elf`: numero di page fault che richiedono che una pagina venga caricata dall'ELF file. Incrementato in `vm_fault_page_replacement_[code][data]()`.
