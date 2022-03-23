@@ -40,7 +40,7 @@ Per concludere, la entry della pagina verrà inserita nella TLB tramite la funzi
 
 ### coremap.c
 
-Qui è presente ciò che occorre per tenere traccia dei frame fisici e quindi gestire la memoria del kernel attraverso una *coremap*. Questa viene inizializzata attraverso la funzione `coremap_init()`. In particolare, essa alloca e inizializza due vettori di dimensione `nRamFrames` i.e., la dimensione che al boot viene assegnata alla RAM, e tali vettori saranno `freeRamFrames[]` e `allocSize[]` i quali saranno, rispettivamente, il vettore le cui entry rappresenteranno le locazioni di memoria occupate (entry a 1) e libere (entry a 0) e l'altro sarà invece il vettore che terrà traccia della dimensione allocata alle varie pagine.
+Qui è presente ciò che occorre per tenere traccia dei frame fisici e quindi gestire la memoria del kernel attraverso una *coremap*. Questa viene inizializzata attraverso la funzione `coremap_init()`. In particolare, essa alloca e inizializza due vettori di dimensione pari al numero di frame `nRamFrames` (valore ottenuto dividendo la dimensione della RAM per la dimensione di ciascun frame) e tali vettori saranno `freeRamFrames[]` e `allocSize[]` i quali rappresenteranno, rispettivamente, il vettore le cui entry rappresenteranno le locazioni di memoria occupate (entry a 1) e libere (entry a 0) e l'altro sarà invece il vettore che terrà traccia della dimensione allocata alle varie pagine.
 
 Proseguendo, troviamo una funzione di supporto, la  `getfreeppages()`. Essa viene utilizzata per cercare nella coremap un insieme lungo `npages` di pagine consecutive libere operando in mutua esclusione sul vettore `freeRamFrames[]` e, in caso di successo, ritornerà l'indirizzo fisico del primo frame libero. 
 Poi troviamo la funzione `coremap_getppages()` che in realtà è un wrapper alla `getfreeppages()`.
@@ -72,10 +72,10 @@ struct addrspace {
 };
 ```
 
-Innanzitutto, in questo file C, è presente la funzione `vm_bootstrap()` che viene viene chiamata nel `main()` e ha il compito di inizializzare tutto ciò che riguarda il Virtual Memory System i.e., la coremap, la Page Table, lo swapfile e la tlb.
+Innanzitutto, in questo file C, è presente la funzione `vm_bootstrap()` che viene viene chiamata nel `main()` e ha il compito di inizializzare tutto ciò che riguarda il Virtual Memory System i.e., la coremap, la Page Table, lo swapfile e la TLB.
 
 Precedentemente, parlando del [TLB fault](#flusso-del-caricamento-di-una-pagina-dopo-un-tlb-fault), abbiamo discusso la funzione `vm_fault()` qui implementata e le relative funzioni `vm_fault_page_replacement_code()`, `vm_fault_page_replacement_data()` e `vm_fault_page_replacement_stack()`. Queste tre funzioni sono molto simili tra loro e, inanzitutto, dopo aver controllato che non si sfori il range di indirizzi appartenente al relativo segmento, esse avviano l'inserimento delle pagine del segmento del processo, in particolare:
-* Se il processo ha già un numero di pagine in memoria >= al numero massimo consentito i.e., 32, allora sarà una pagina dello stesso processo ad essere cercata e rimpiazzata, combinando delle primitive messe a disposizione da [pt.c](#ptc) e [swapfile.c](#swapfilec). 
+* Se il processo ha già un numero di pagine in memoria >= al numero massimo consentito i.e., 32, allora sarà una pagina dello stesso processo ad essere cercata e rimpiazzata sulla Page Table, combinando delle primitive messe a disposizione da [pt.c](#ptc) e [swapfile.c](#swapfilec). 
 * Altrimenti, tramite la `coremap_getppages()` (definita in [coremap.c](#coremapc)) si ricerca un frame libero. Se questo frame non sarà disponibile, allora occorrerà fare lo swap con una pagina appartentente a un qualsiasi altro processo seguendo una strategia FIFO.
 
 Successivamente la Page Table verrà aggiornata e, nel caso in cui il fault fosse partito da un segmento di codice o di dati, dall'ELF verrà caricata la relativa pagina tramite la `load_page_from_elf()` (definita in [loadelf.c](#loadelfc)).
@@ -90,7 +90,7 @@ Altre funzioni degne di nota sono:
 In questo file è presente il codice necessario per gestire l’Inverted Page Table che tiene traccia, per ogni frame fisico della RAM, della pagina virtuale in esso allocata. 
 
 Tramite la `pt_init()` verranno inizializzate le strutture di supporto. La prima operazione effettuata è assegnare la dimensione alla variabile `nRamFrames`, dato che la dimensione della RAM viene letta solo all’accensione del sistema. 
-In seguito, viene allocato dinamicamente ad una dimensione di `nRamFrames` e inizializzato il vettore `ipt[]`. 
+In seguito, viene allocato dinamicamente ad una dimensione di `nRamFrames` e inizializzato il vettore `ipt[]`. Esso è un vettore di `struct ipt_t` aventi il seguente formato:
 
 ```C
 struct ipt_t {
@@ -98,7 +98,7 @@ struct ipt_t {
     vaddr_t vaddr;
     bool invalid;
     unsigned char flags;
-    unsigned int counter;  /* the greater the counter, the oldest the entry */
+    unsigned int counter;  /* the greater the counter, the older the entry */
 };
 ```
 
@@ -106,7 +106,7 @@ Le funzioni per la sua gestione sono:
 + `pt_add_entry()` che viene utilizzata dalla `vm_fault_page_replacement_[code][data][stack]()` (definite in [addrspace.c](#addrspacec)) dopo aver trovato un frame libero o da rimpiazzare per caricare una pagina dal backing store. 
 + `pt_replace_entry()` e `pt_replace_any_entry()` sono chiamate dalla `vm_fault_page_replacement_[code][data][stack]()` rispettivamente quando il processo ha già raggiunto il massimo numero di pagine ad esso allocate e quando non sono presenti frame liberi in memoria. Nel primo caso la pagina da rimpiazzare dovrà appartenere al processo stesso. La strategia di rimpiazzamento è First In First Out. Infatti, ad ogni entry della page table viene assegnato un valore `ipt[i] -> counter`, che viene usato per tenere traccia delle pagine da più tempo in RAM. La pagine con valore maggiore viene rimpiazzata. 
 Ogni volta che viene aggiunta una pagina con `pt_add_entry()` si fa una chiamata a `upgrade_counter()`, che incrementa questo valore in ogni entry valida della tabella, mentre la nuova pagina viene inserita con valore 0.
-+ `pt get_paddr()` viene usata dalla `vm_fault()` per sapere se, dato il pid e il virtual address, la pagina richiesta si trova in memoria e, se c’è, ne restituisce l’indirizzo fisico. 
++ `pt_get_paddr()` viene usata dalla `vm_fault()` per sapere se, dato il pid e il virtual address, la pagina richiesta si trova in memoria e, se c’è, ne restituisce l’indirizzo fisico. 
 + `pt_remove_entry()` e `pt_remove_entries()` servono per invalidare una o più entry della tabella. La seconda, in particolare, viene chiamata alla chiusura di un processo dalla `as_destroy()` per invalidare **tutti** i frame appartenenti ad esso, in modo da poterli riutilizzare.
 + `pt_destroy()` libera la page table attraverso la `kfree()` su ogni entry.
 + `pt_getFlagsByIndex()`, ` pt_getVaddrByIndex()`, ` pt_getPidByIndex()` e `pt_setFlagsAtIndex()` sono funzioni che vengono utilizzate all’occorrenza per ottenere o settare i valori delle entry.
